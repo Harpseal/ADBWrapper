@@ -1,0 +1,100 @@
+﻿<Window x:Class="ADBWrapper.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ADBWrapper"
+        mc:Ignorable="d"
+        Title="ADB Wrapper" Height="640" Width="400" Background="#FF404040" Closing="Window_Closing">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="0"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="32"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="0" HorizontalAlignment="Right">
+            <Button x:Name="mBtnDebug" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnDebug_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="Debug" FontSize="10" Padding="0" Foreground="White"/>
+            </Button>
+        </StackPanel>
+        <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove"/>
+        <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="2" HorizontalAlignment="Right">
+            <Button x:Name="mBtnPower" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnPower_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="Power" FontSize="10" Padding="0" Foreground="White"/>
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem x:Name="mMenuItemReboot" Header="Reboot" Click="BtnPowerMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemKillServer" Header="Kill-server" Click="BtnPowerMenuItem_Click"/>
+                        <Separator/>
+                        <MenuItem x:Name="mMenuItemHideMsg" Header="Show/Hide msg" Click="BtnPowerMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemClrMsg" Header="Clear msg" Click="BtnPowerMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemCopyTouchCmd" Header="Copy touch cmds" Click="BtnPowerMenuItem_Click"/>
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+            <Button x:Name="mBtnHome" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnHome_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="Home" FontSize="10" Padding="0" Foreground="White"/>
+            </Button>
+            <Button x:Name="mBtnBack" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnBack_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="Back" FontSize="10" Padding="0" Foreground="White"/>
+            </Button>
+            <Button x:Name="mBtnScreenshot" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnScreenshot_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="Scr" FontSize="10" Padding="0" Foreground="White"/>
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Open scr path" Click="BtnScrMenuItem_Click"/>
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+            <Button x:Name="mBtnRotLeft" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotLeft_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="RotL" FontSize="10" Padding="0" Foreground="White"/>
+            </Button>
+            <Button x:Name="mBtnRotRight" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotRight_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="RotR" FontSize="10" Padding="0" Foreground="White"/>
+            </Button>
+            <Button x:Name="mBtnSettings" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnSettings_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="Sett" FontSize="10" Padding="0" Foreground="White"/>
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem x:Name="mMenuItemSettingsSysInfo" Header="SysInfo" Click="BtnSettingsMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemSettingsDev" Header="Dev" Click="BtnSettingsMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemSettingsDevDashboard" Header="Dev(Dashboard)" Click="BtnSettingsMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemCamera" Header="Camera" Click="BtnSettingsMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemCameraMTK" Header="Camera(MTK)" Click="BtnSettingsMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemMTKLogger" Header="MTKLogger" Click="BtnSettingsMenuItem_Click"/>
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+            <Button x:Name="mBtnAutoRefresh" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnAutoRefresh_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Grid>
+                    <Label x:Name="mImgRefreshMutually" Content="Mutu" FontSize="10" Padding="0" Foreground="White"/>
+                    <Label x:Name="mImgRefreshAuto" Content="Auto" FontSize="10" Padding="0" Foreground="White" Visibility="Hidden"/>
+                </Grid>
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem x:Name="mMenuItemQSAuto" Header="Auto" Click="BtnAutoRefreshMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemQSMutual" Header="Mutual" Click="BtnAutoRefreshMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemQSDisable" Header="Disable" Click="BtnAutoRefreshMenuItem_Click"/>
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+        </StackPanel>
+        <Label x:Name="mLabelUpdatedIntervalBlur" Content="" FontSize="10" Padding="0" Foreground="Black" Grid.Column="1" HorizontalAlignment="Left" VerticalContentAlignment="Bottom" VerticalAlignment="Bottom" IsHitTestVisible="false">
+            <Label.Effect>
+                <BlurEffect
+                  Radius="2.0"
+                  KernelType="Box"/>
+            </Label.Effect>
+        </Label>
+        <Label x:Name="mLabelUpdatedInterval" Content="" FontSize="10" Padding="0" Foreground="White" Grid.Column="1" HorizontalAlignment="Left" VerticalContentAlignment="Bottom" VerticalAlignment="Bottom" IsHitTestVisible="false"/>
+        <RichTextBox x:Name="mRichTextBoxMessageBlur" FontSize="10" Padding="0" Foreground="Black" Grid.Column="1" IsHitTestVisible="false" Background="#40000000" Visibility="Visible" Opacity="0" BorderThickness="0">
+            <RichTextBox.Effect>
+                <BlurEffect
+                  Radius="1.5"
+                  KernelType="Box"/>
+            </RichTextBox.Effect>
+        </RichTextBox>
+        <RichTextBox x:Name="mRichTextBoxMessage" FontSize="10" Padding="0" Foreground="White" Grid.Column="1" IsHitTestVisible="false" Background="Transparent" Visibility="Visible" Opacity="0" BorderThickness="0">
+        </RichTextBox>
+    </Grid>
+</Window>
