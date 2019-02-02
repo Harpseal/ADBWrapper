@@ -37,7 +37,7 @@ namespace ADBWrapper
 
         enum RefreshMode
         {
-            AUTO,
+            AUTO = 0,
             MUTUAL,
             DISABLE
         }
@@ -72,6 +72,8 @@ namespace ADBWrapper
             if (Environment.GetCommandLineArgs().Length >= 2)
                 mAdbPath = Environment.GetCommandLineArgs()[1];
 
+            mRefreshMode = (RefreshMode)ADBWrapper.Properties.Settings.Default.RefreshMode;
+
             ShowScreenshotFromMemory();
 
             mAdbSendCMDThread = new Thread(() => {
@@ -80,7 +82,7 @@ namespace ADBWrapper
                 while (!mAdbClosing)
                 {
                     mAdbSendCMDEvent.WaitOne();
-                    Console.WriteLine("mAdbSendCMDThread " + mAdbClosing);
+                    //Console.WriteLine("mAdbSendCMDThread " + mAdbClosing);
 
                     if (mAdbClosing) break;
 
@@ -189,10 +191,11 @@ namespace ADBWrapper
 
             adb_proc.ErrorDataReceived += new System.Diagnostics.DataReceivedEventHandler((o, d) =>
             {
-                Console.WriteLine("Error: " + d.Data);
+                
                 if (d.Data != null)
                 {
                     string msg = d.Data.Trim();
+                    if (msg.Length != 0) Console.WriteLine("Error: " + d.Data);
                     Console.WriteLine(msg);
                     this.Dispatcher.Invoke(() =>
                     {
@@ -213,7 +216,11 @@ namespace ADBWrapper
             }
             catch (System.ComponentModel.Win32Exception e)
             {
-                Console.WriteLine(e.ToString());
+                WriteExecption(e.ToString());
+                this.Dispatcher.Invoke(() =>
+                {
+                    UpdateMessage(e.ToString(), MessageLevel.ERROR);
+                });
                 mAdbCMDMutex.ReleaseMutex();
                 return false;
             }
@@ -269,12 +276,39 @@ namespace ADBWrapper
             }
             catch (System.ComponentModel.Win32Exception e)
             {
-                Console.WriteLine(e.ToString());
+                WriteExecption(e.ToString());
+                this.Dispatcher.Invoke(() =>
+                {
+                    UpdateMessage(e.ToString(), MessageLevel.ERROR);
+                });
                 mAdbCMDMutex.ReleaseMutex();
                 return false;
             }
         }
 
+        bool WriteExecption(string exp)
+        {
+            Console.WriteLine(exp);
+            bool res = true;
+            exp = exp.Trim();
+            if (exp.Length == 0) return true;
+            //AppDomain.CurrentDomain.BaseDirectory
+            try
+            {
+                File.AppendAllText(AppDomain.CurrentDomain.BaseDirectory + "execptions.log",
+                    DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") +"\n" + exp + "\n\n");
+            }catch (Exception e)
+            {
+                res = false;
+                Console.WriteLine(e.ToString());
+                this.Dispatcher.Invoke(() =>
+                {
+                    UpdateMessage(e.ToString(), MessageLevel.ERROR);
+                });
+            }
+
+            return res;
+        }
 
         bool UpdateScreenshot(ref MemoryStream mem_stream)
         {
@@ -342,7 +376,11 @@ namespace ADBWrapper
                 }
                 catch (System.NotSupportedException e)
                 {
-                    Console.WriteLine("Image format not supported " + e.ToString());
+                    WriteExecption("Image format not supported " + e.ToString());
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        UpdateMessage(e.ToString(), MessageLevel.ERROR);
+                    });
                 }
             });
 
@@ -540,6 +578,8 @@ namespace ADBWrapper
             {
                 mRefreshMode = RefreshMode.MUTUAL;
             }
+            ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
+            ADBWrapper.Properties.Settings.Default.Save();
             UpdateBtnAutoRefresh();
         }
 
@@ -551,6 +591,8 @@ namespace ADBWrapper
                 mRefreshMode = RefreshMode.MUTUAL;
             else if (sender == mMenuItemQSDisable)
                 mRefreshMode = RefreshMode.DISABLE;
+            ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
+            ADBWrapper.Properties.Settings.Default.Save();
             UpdateBtnAutoRefresh();
         }
 
@@ -578,8 +620,9 @@ namespace ADBWrapper
                 ShowScreenshotFromMemory();
             else
             {
-                if (Math.Abs(adb_pos.X - mMousePressPosition.X) < 10 &&
-                    Math.Abs(adb_pos.Y - mMousePressPosition.Y) < 10)
+                if (Math.Abs(adb_pos.X - mMousePressPosition.X) < 2 &&
+                    Math.Abs(adb_pos.Y - mMousePressPosition.Y) < 2 &&
+                    diff.TotalMilliseconds < 150)
                     AdbInputTap(mMousePressPosition);
                 else
                     AdbInputSwipe(mMousePressPosition, adb_pos, (int)diff.TotalMilliseconds);
@@ -597,6 +640,11 @@ namespace ADBWrapper
 
             this.Title = Application.Current.MainWindow.GetType().Assembly.GetName().Name + String.Format(" - {0:0.},{1:0.} @ {2}x{3}", adb_pos.X, adb_pos.Y, mAdbScreenShot.Source.Width, mAdbScreenShot.Source.Height);
             //Console.WriteLine(Application.Current.MainWindow.GetType().Assembly.GetName().Name + " " + adb_pos.ToString());
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            UpdateBtnAutoRefresh();
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -683,6 +731,5 @@ namespace ADBWrapper
                 tr.ApplyPropertyValue(TextElement.ForegroundProperty, Brushes.Black);
             }
         }
-
     }
 }

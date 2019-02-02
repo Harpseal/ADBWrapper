@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ADBWrapper"
         mc:Ignorable="d"
-        Title="ADB Wrapper" Height="640" Width="400" Background="#FF404040" Closing="Window_Closing">
+        Title="ADB Wrapper" Height="640" Width="400" Background="#FF404040" Loaded="Window_Loaded" Closing="Window_Closing">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="0"/>
@@ -19,8 +19,11 @@
         </StackPanel>
         <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove"/>
         <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="2" HorizontalAlignment="Right">
-            <Button x:Name="mBtnPower" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnPower_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
-                <Label Content="Power" FontSize="10" Padding="0" Foreground="White"/>
+            <Button x:Name="mBtnPower" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnPower_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send power keyevent">
+                <Grid>
+                    <Image Source="resource/icon/btn_more.png"/>
+                    <Label Content="Power" FontSize="10" Padding="0" Foreground="White" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
                         <MenuItem x:Name="mMenuItemReboot" Header="Reboot" Click="BtnPowerMenuItem_Click"/>
@@ -28,32 +31,38 @@
                         <Separator/>
                         <MenuItem x:Name="mMenuItemHideMsg" Header="Show/Hide msg" Click="BtnPowerMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemClrMsg" Header="Clear msg" Click="BtnPowerMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemCopyTouchCmd" Header="Copy touch cmds" Click="BtnPowerMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemCopyTouchCmd" Header="Copy shell cmds" Click="BtnPowerMenuItem_Click"/>
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
-            <Button x:Name="mBtnHome" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnHome_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+            <Button x:Name="mBtnHome" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnHome_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send home keyevent">
                 <Label Content="Home" FontSize="10" Padding="0" Foreground="White"/>
             </Button>
-            <Button x:Name="mBtnBack" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnBack_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+            <Button x:Name="mBtnBack" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnBack_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send back keyevent">
                 <Label Content="Back" FontSize="10" Padding="0" Foreground="White"/>
             </Button>
-            <Button x:Name="mBtnScreenshot" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnScreenshot_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
-                <Label Content="Scr" FontSize="10" Padding="0" Foreground="White"/>
+            <Button x:Name="mBtnScreenshot" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnScreenshot_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Take a screenshot">
+                <Grid>
+                    <Image Source="resource/icon/btn_more.png"/>
+                    <Label Content="Scr" FontSize="10" Padding="0" Foreground="White" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Open scr path" Click="BtnScrMenuItem_Click"/>
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
-            <Button x:Name="mBtnRotLeft" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotLeft_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+            <Button x:Name="mBtnRotLeft" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotLeft_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Rotate 90deg counter-clockwise">
                 <Label Content="RotL" FontSize="10" Padding="0" Foreground="White"/>
             </Button>
-            <Button x:Name="mBtnRotRight" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotRight_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+            <Button x:Name="mBtnRotRight" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotRight_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Rotate 90deg clockwise">
                 <Label Content="RotR" FontSize="10" Padding="0" Foreground="White"/>
             </Button>
-            <Button x:Name="mBtnSettings" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnSettings_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
-                <Label Content="Sett" FontSize="10" Padding="0" Foreground="White"/>
+            <Button x:Name="mBtnSettings" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnSettings_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Launch settings app">
+                <Grid>
+                    <Image Source="resource/icon/btn_more.png"/>
+                    <Label Content="Sett" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
                         <MenuItem x:Name="mMenuItemSettingsSysInfo" Header="SysInfo" Click="BtnSettingsMenuItem_Click"/>
@@ -65,10 +74,11 @@
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
-            <Button x:Name="mBtnAutoRefresh" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnAutoRefresh_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+            <Button x:Name="mBtnAutoRefresh" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnAutoRefresh_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Preview update mode">
                 <Grid>
-                    <Label x:Name="mImgRefreshMutually" Content="Mutu" FontSize="10" Padding="0" Foreground="White"/>
-                    <Label x:Name="mImgRefreshAuto" Content="Auto" FontSize="10" Padding="0" Foreground="White" Visibility="Hidden"/>
+                    <Image Source="resource/icon/btn_more.png"/>
+                    <Label x:Name="mImgRefreshMutually" Content="Mutu" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                    <Label x:Name="mImgRefreshAuto" Content="Auto" FontSize="10" Padding="0" Foreground="White" Visibility="Hidden" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
