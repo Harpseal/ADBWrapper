@@ -37,7 +37,7 @@
     <StartupObject />
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>resource\icon\600px_apk_format_icon_adb_vAS_icon.ico</ApplicationIcon>
+    <ApplicationIcon>resource\icon\icon_main_adb.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -103,7 +103,18 @@
     <Resource Include="resource\icon\btn_more.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="resource\icon\600px_apk_format_icon_adb_vAS_icon.ico" />
+    <Resource Include="resource\icon\round_arrow_back_ios_white_36dp.png" />
+    <Resource Include="resource\icon\round_camera_white_36dp.png" />
+    <Resource Include="resource\icon\round_home_white_36dp.png" />
+    <Resource Include="resource\icon\round_power_settings_new_white_36dp.png" />
+    <Resource Include="resource\icon\round_refresh_white_36dp.png" />
+    <Resource Include="resource\icon\round_refresh_white_auto_36dp.png" />
+    <Resource Include="resource\icon\round_rotate_left_white_36dp.png" />
+    <Resource Include="resource\icon\round_rotate_right_white_36dp.png" />
+    <Resource Include="resource\icon\round_settings_white_36dp.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="resource\icon\icon_main_adb.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

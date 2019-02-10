@@ -678,11 +678,12 @@ namespace ADBWrapper
                 AdbCMD("kill-server");
             else if (sender == mMenuItemHideMsg)
             {
-                DoubleAnimation da = new DoubleAnimation();
-                da.To = mRichTextBoxMessage.Opacity < 0.5 ? 1:0;
-                da.Duration = new Duration(TimeSpan.FromSeconds(0.25));
-                mRichTextBoxMessage.BeginAnimation(OpacityProperty, da);
-                mRichTextBoxMessageBlur.BeginAnimation(OpacityProperty, da);
+                ShowMessage(mRichTextBoxMessage.Opacity < 0.5);
+                //DoubleAnimation da = new DoubleAnimation();
+                //da.To = mRichTextBoxMessage.Opacity < 0.5 ? 1:0;
+                //da.Duration = new Duration(TimeSpan.FromSeconds(0.25));
+                //mRichTextBoxMessage.BeginAnimation(OpacityProperty, da);
+                //mRichTextBoxMessageBlur.BeginAnimation(OpacityProperty, da);
 
                 //if (mRichTextBoxMessage.Visibility == Visibility.Visible)
                 //{
@@ -715,6 +716,8 @@ namespace ADBWrapper
             msg = msg.Trim();
             if (msg.Length == 0) return;
 
+            if (mRichTextBoxMessage.Opacity < 0.5 && msgLevel == MessageLevel.ERROR)
+                ShowMessage(true);
 
             string richText = new TextRange(mRichTextBoxMessage.Document.ContentStart, mRichTextBoxMessage.Document.ContentEnd).Text;
             if (!isSkipRepeat || (isSkipRepeat && !richText.StartsWith(msg)))
@@ -730,6 +733,15 @@ namespace ADBWrapper
                 tr.Text = msg + "\r";
                 tr.ApplyPropertyValue(TextElement.ForegroundProperty, Brushes.Black);
             }
+        }
+
+        private void ShowMessage(bool isShow)
+        {
+            DoubleAnimation da = new DoubleAnimation();
+            da.To = isShow ? 1 : 0;
+            da.Duration = new Duration(TimeSpan.FromSeconds(0.25));
+            mRichTextBoxMessage.BeginAnimation(OpacityProperty, da);
+            mRichTextBoxMessageBlur.BeginAnimation(OpacityProperty, da);
         }
     }
 }

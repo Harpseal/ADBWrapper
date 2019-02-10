@@ -22,7 +22,8 @@
             <Button x:Name="mBtnPower" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnPower_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send power keyevent">
                 <Grid>
                     <Image Source="resource/icon/btn_more.png"/>
-                    <Label Content="Power" FontSize="10" Padding="0" Foreground="White" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Image Source="resource/icon/round_power_settings_new_white_36dp.png"/>
+                    <!--Label Content="Power" FontSize="10" Padding="0" Foreground="White" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
@@ -36,15 +37,18 @@
                 </Button.ContextMenu>
             </Button>
             <Button x:Name="mBtnHome" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnHome_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send home keyevent">
-                <Label Content="Home" FontSize="10" Padding="0" Foreground="White"/>
+                <!--Label Content="Home" FontSize="10" Padding="0" Foreground="White"/-->
+                <Image Source="resource/icon/round_home_white_36dp.png"/>
             </Button>
             <Button x:Name="mBtnBack" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnBack_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send back keyevent">
-                <Label Content="Back" FontSize="10" Padding="0" Foreground="White"/>
+                <!--Label Content="Back" FontSize="10" Padding="0" Foreground="White"/-->
+                <Image Source="resource/icon/round_arrow_back_ios_white_36dp.png"/>
             </Button>
             <Button x:Name="mBtnScreenshot" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnScreenshot_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Take a screenshot">
                 <Grid>
                     <Image Source="resource/icon/btn_more.png"/>
-                    <Label Content="Scr" FontSize="10" Padding="0" Foreground="White" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Image Source="resource/icon/round_camera_white_36dp.png"/>
+                    <!--Label Content="Scr" FontSize="10" Padding="0" Foreground="White" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
@@ -53,15 +57,18 @@
                 </Button.ContextMenu>
             </Button>
             <Button x:Name="mBtnRotLeft" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotLeft_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Rotate 90deg counter-clockwise">
-                <Label Content="RotL" FontSize="10" Padding="0" Foreground="White"/>
+                <!--Label Content="RotL" FontSize="10" Padding="0" Foreground="White"/-->
+                <Image Source="resource/icon/round_rotate_left_white_36dp.png"/>
             </Button>
             <Button x:Name="mBtnRotRight" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotRight_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Rotate 90deg clockwise">
-                <Label Content="RotR" FontSize="10" Padding="0" Foreground="White"/>
+                <!--Label Content="RotR" FontSize="10" Padding="0" Foreground="White"/-->
+                <Image Source="resource/icon/round_rotate_right_white_36dp.png"/>
             </Button>
             <Button x:Name="mBtnSettings" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnSettings_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Launch settings app">
                 <Grid>
                     <Image Source="resource/icon/btn_more.png"/>
-                    <Label Content="Sett" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                    <Image Source="resource/icon/round_settings_white_36dp.png"/>
+                    <!--Label Content="Sett" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
@@ -77,8 +84,10 @@
             <Button x:Name="mBtnAutoRefresh" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnAutoRefresh_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Preview update mode">
                 <Grid>
                     <Image Source="resource/icon/btn_more.png"/>
-                    <Label x:Name="mImgRefreshMutually" Content="Mutu" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
-                    <Label x:Name="mImgRefreshAuto" Content="Auto" FontSize="10" Padding="0" Foreground="White" Visibility="Hidden" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                    <Image Source="resource/icon/round_refresh_white_36dp.png" x:Name="mImgRefreshMutually"/>
+                    <Image Source="resource/icon/round_refresh_white_auto_36dp.png" x:Name="mImgRefreshAuto" Visibility="Hidden"/>
+                    <!--Label x:Name="mImgRefreshMutually" Content="Mutu" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
+                    <!--Label x:Name="mImgRefreshAuto" Content="Auto" FontSize="10" Padding="0" Foreground="White" Visibility="Hidden" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
