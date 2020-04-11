@@ -24,6 +24,9 @@ namespace ADBWrapper
     /// </summary>
     public partial class MainWindow : Window
     {
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        public static extern bool DeleteObject(IntPtr hObject);
+
         private string mAdbScreenshotPath = "";
         private string mAdbPath = "adb.exe";
         private int mScreenRotation = 0;
@@ -32,14 +35,22 @@ namespace ADBWrapper
 
         private Thread mAdbSendCMDThread;
         private AutoResetEvent mAdbSendCMDEvent = new AutoResetEvent(false);
-
         private Mutex mAdbCMDMutex = new Mutex();
+
+        //adb exec-out screenrecord --output-format=h264  - | mplayer -cache 512 -
+        //adb exec-out screenrecord --size=360x640 --output-format=raw-frames - | mplayer -demuxer rawvideo -rawvideo w = 360:h=640:format=rgb24 -
+        private Thread mAdbScrRecThread = null;
+        System.Diagnostics.Process mAdbScrRecProc = null;
+        private Mutex mAdbScrRecMutex = new Mutex();
+
+
 
         enum RefreshMode
         {
             AUTO = 0,
             MUTUAL,
-            DISABLE
+            DISABLE,
+            SCR_REC
         }
 
         private RefreshMode mRefreshMode = RefreshMode.MUTUAL;
@@ -60,6 +71,8 @@ namespace ADBWrapper
         private DateTime mMousePressedTime = DateTime.Now;
 
         private DateTime mScreenshotUpdatedTime = DateTime.Now;
+
+        private FFMpegWrapperCLI mDecoder = new FFMpegWrapperCLI();
 
         public MainWindow()
         {
@@ -265,9 +278,19 @@ namespace ADBWrapper
                 //adb_proc.BeginOutputReadLine();
                 adb_proc.BeginErrorReadLine();
 
-                int val;
-                while ((val = adb_proc.StandardOutput.Read()) != -1)
-                    mem_stream.WriteByte((byte)val);
+                //int val;
+                //while ((val = adb_proc.StandardOutput.Read()) != -1)
+                //    mem_stream.WriteByte((byte)val);
+
+                char[] chbuffer = new char[128];
+                int nRead = 0;
+                var encoder = System.Text.Encoding.GetEncoding("latin1");
+                do
+                {
+                    nRead = adb_proc.StandardOutput.Read(chbuffer, 0, chbuffer.Length);
+                    byte[] binbuffer = encoder.GetBytes(chbuffer);//chbuffer.Select(c => (byte)c).ToArray();
+                    mem_stream.Write(binbuffer, 0, nRead);
+                } while (nRead != 0);
 
                 adb_proc.WaitForExit();
 
@@ -284,6 +307,210 @@ namespace ADBWrapper
                 mAdbCMDMutex.ReleaseMutex();
                 return false;
             }
+        }
+
+        //adb exec-out screenrecord --output-format=h264  - | mplayer -cache 512 -
+        //adb exec-out screenrecord --size=360x640 --output-format=raw-frames - | mplayer -demuxer rawvideo -rawvideo w = 360:h=640:format=rgb24 -
+        //private Thread mAdbScrRecThread = null;
+        //System.Diagnostics.Process mAdbScrRecProc = null;
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory")]
+        public static extern void CopyMemory(IntPtr Destination, IntPtr Source, uint Length);
+
+        public static WriteableBitmap FromNativePointer(IntPtr pData, int w, int h, int ch)
+        {
+            PixelFormat format = PixelFormats.Default;
+
+            if (ch == 1) format = PixelFormats.Gray8; //grey scale image 0-255
+            if (ch == 3) format = PixelFormats.Bgr24; //RGB
+            if (ch == 4) format = PixelFormats.Bgr32; //RGB + alpha
+
+
+            WriteableBitmap wbm = new WriteableBitmap(w, h, 96, 96, format, null);
+            CopyMemory(wbm.BackBuffer, pData, (uint)(w * h * ch));
+
+            wbm.Lock();
+            wbm.AddDirtyRect(new Int32Rect(0, 0, wbm.PixelWidth, wbm.PixelHeight));
+            wbm.Unlock();
+
+            return wbm;
+        }
+
+        bool StartAdbScrRec()
+        {
+            int proc_buf_len = 4096*2;
+            StopAdbScrRec();
+            if (!mDecoder.init(27, proc_buf_len*2, true))
+                return false;
+            mAdbScrRecThread = new Thread(() => {
+                do
+                {
+                    System.Diagnostics.Process adb_proc = new System.Diagnostics.Process();
+                    adb_proc.StartInfo.FileName = mAdbPath;
+                    adb_proc.StartInfo.Arguments = "exec-out screenrecord --output-format=h264 -";
+                    adb_proc.StartInfo.UseShellExecute = false;
+
+                    adb_proc.StartInfo.StandardOutputEncoding = System.Text.Encoding.GetEncoding("latin1");
+
+                    adb_proc.StartInfo.RedirectStandardOutput = true;
+                    adb_proc.StartInfo.RedirectStandardError = true;
+                    adb_proc.StartInfo.CreateNoWindow = true;
+
+                    adb_proc.ErrorDataReceived += new System.Diagnostics.DataReceivedEventHandler((o, d) =>
+                    {
+                        if (d.Data != null)
+                        {
+                            string msg = d.Data.Trim();
+                            Console.WriteLine(msg);
+                            this.Dispatcher.Invoke(() =>
+                            {
+                                UpdateMessage(msg, MessageLevel.ERROR);
+                            });
+                        }
+
+                    });
+
+                    IntPtr unmanagedBuffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(proc_buf_len);
+                    IntPtr unmanagedWidth = System.Runtime.InteropServices.Marshal.AllocHGlobal(sizeof(int));
+                    IntPtr unmanagedHeight = System.Runtime.InteropServices.Marshal.AllocHGlobal(sizeof(int));
+                    IntPtr unmanagedChannels = System.Runtime.InteropServices.Marshal.AllocHGlobal(sizeof(int));
+
+                    IntPtr unmanagedImgData = IntPtr.Zero;
+
+                    WriteableBitmap wbm = null;
+
+                    mAdbScrRecMutex.WaitOne();
+                    mAdbScrRecProc = adb_proc;
+                    mAdbScrRecMutex.ReleaseMutex();
+
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        RenderOptions.SetBitmapScalingMode(mAdbScreenShot, BitmapScalingMode.LowQuality);
+                        mAdbScreenShot.Opacity = 1;
+                    });
+
+                    int width = 0, height = 0, channels = 0;
+                    int num_skip = 0, num_updated = 0;
+                    try
+                    {
+
+                        adb_proc.Start();
+                        //adb_proc.BeginOutputReadLine();
+                        adb_proc.BeginErrorReadLine();
+
+                        //int val;
+                        //while ((val = adb_proc.StandardOutput.Read()) != -1)
+                        //    mem_stream.WriteByte((byte)val);
+
+                        char[] chbuffer = new char[proc_buf_len];
+                        int nRead = 0;
+                        var encoder = System.Text.Encoding.GetEncoding("latin1");
+
+                        do
+                        {
+                            nRead = adb_proc.StandardOutput.Read(chbuffer, 0, chbuffer.Length);
+                            byte[] binbuffer = encoder.GetBytes(chbuffer, 0, nRead);//chbuffer.Select(c => (byte)c).ToArray();
+                            System.Runtime.InteropServices.Marshal.Copy(binbuffer, 0, unmanagedBuffer, binbuffer.Length);
+                            System.Runtime.InteropServices.Marshal.WriteInt32(unmanagedWidth, width);
+                            System.Runtime.InteropServices.Marshal.WriteInt32(unmanagedHeight, height);
+                            System.Runtime.InteropServices.Marshal.WriteInt32(unmanagedChannels, channels);
+
+
+                            int ret_status = -1;
+                            ret_status = mDecoder.decoderBuffer(unmanagedBuffer, binbuffer.Length, unmanagedWidth, unmanagedHeight, unmanagedChannels, unmanagedImgData);
+
+                            int w = System.Runtime.InteropServices.Marshal.ReadInt32(unmanagedWidth);
+                            int h = System.Runtime.InteropServices.Marshal.ReadInt32(unmanagedHeight);
+                            int c = System.Runtime.InteropServices.Marshal.ReadInt32(unmanagedChannels);
+
+
+                            if (unmanagedImgData != IntPtr.Zero && ret_status == 1)//DECODE_STATUS_OK
+                            {
+                                ++num_updated;
+                                try
+                                {
+                                    this.Dispatcher.Invoke(() =>
+                                    {
+                                        if (wbm == null)
+                                            wbm = FromNativePointer(unmanagedImgData, width, height, channels);
+                                        else
+                                        {
+                                            CopyMemory(wbm.BackBuffer, unmanagedImgData, (uint)(width * height * channels));
+
+                                            wbm.Lock();
+                                            wbm.AddDirtyRect(new Int32Rect(0, 0, wbm.PixelWidth, wbm.PixelHeight));
+                                            wbm.Unlock();
+
+                                        }
+                                        //mAdbScreenShot.Source = bmpsrc;
+                                        mAdbScreenShot.Source = wbm;
+                                    });
+                                }
+                                catch (System.Threading.Tasks.TaskCanceledException) { }
+                            }
+
+                            
+                            if ((w * h * c != 0) && (w != width || h != height || c != channels))
+                            {
+                                width = w;
+                                height = h;
+                                channels = c;
+
+                                if (unmanagedImgData != IntPtr.Zero)
+                                    System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedImgData);
+                                unmanagedImgData = System.Runtime.InteropServices.Marshal.AllocHGlobal(width * height * channels);
+                                wbm = null;
+                                Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} {5}", nRead, ret_status, width, height, channels, num_updated);
+
+                            }
+                            else if ((num_updated % 40) == 0)
+                                Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} {5}", nRead, ret_status, width, height, channels, num_updated);
+                            //
+                        } while (nRead != 0 || !adb_proc.HasExited);
+                        Console.WriteLine("RecScr stoped.....");
+                    
+                    }
+                    catch (System.ComponentModel.Win32Exception e)
+                    {
+                        WriteExecption(e.ToString());
+                        this.Dispatcher.Invoke(() =>
+                        {
+                            UpdateMessage(e.ToString(), MessageLevel.ERROR);
+                        });
+                    }
+                    catch (System.InvalidOperationException e)
+                    {
+                        WriteExecption(e.ToString());
+                        this.Dispatcher.Invoke(() =>
+                        {
+                            UpdateMessage(e.ToString(), MessageLevel.WARNING);
+                        });
+                    }
+                
+                    mAdbScrRecMutex.WaitOne();
+                    mAdbScrRecProc = null;
+                    mAdbScrRecMutex.ReleaseMutex();
+
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedBuffer);
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedWidth);
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedHeight);
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedChannels);
+                    if (unmanagedImgData != IntPtr.Zero)
+                        System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedImgData);
+                } while (mRefreshMode == RefreshMode.SCR_REC);
+                Console.WriteLine("RecScr thead exited.....");
+            });
+            mAdbScrRecThread.Start();
+            return true;
+        }
+
+        bool StopAdbScrRec()
+        {
+            mAdbScrRecMutex.WaitOne();
+            if (mAdbScrRecProc != null)
+                mAdbScrRecProc.Close();
+            mAdbScrRecMutex.ReleaseMutex();
+            return true;
         }
 
         bool WriteExecption(string exp)
@@ -382,6 +609,14 @@ namespace ADBWrapper
                         UpdateMessage(e.ToString(), MessageLevel.ERROR);
                     });
                 }
+                catch (System.IO.FileFormatException ffe)
+                {
+                    WriteExecption("Image format not supported " + ffe.ToString());
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        UpdateMessage(ffe.ToString(), MessageLevel.ERROR);
+                    });
+                }
             });
 
             return true;
@@ -457,7 +692,16 @@ namespace ADBWrapper
 
         private void BtnDebug_Click(object sender, RoutedEventArgs e)
         {
-
+            if (sender == mBtnDebug)
+            {
+                mRefreshMode = RefreshMode.SCR_REC;
+                StartAdbScrRec();
+            }
+            else if (sender == mBtnDebug2)
+            {
+                mRefreshMode = RefreshMode.DISABLE;
+                StopAdbScrRec();
+            }
         }
 
 
@@ -484,9 +728,9 @@ namespace ADBWrapper
 
         private void BtnScreenshot_Click(object sender, RoutedEventArgs e)
         {
-            if (mRefreshMode != RefreshMode.AUTO)
-                ShowScreenshotFromMemory(true);
             mBtnScreenshot.IsEnabled = false;
+            //if (mRefreshMode != RefreshMode.AUTO)
+            ShowScreenshotFromMemory(true);
         }
 
         private void BtnRotLeft_Click(object sender, RoutedEventArgs e)
@@ -545,7 +789,9 @@ namespace ADBWrapper
                 mBtnAutoRefresh.BeginAnimation(OpacityProperty, da);
 
                 mImgRefreshAuto.Visibility = Visibility.Collapsed;
+                mImgRefreshRec.Visibility = Visibility.Collapsed;
                 mImgRefreshMutually.Visibility = Visibility.Visible;
+                StopAdbScrRec();
             }
             else if (mRefreshMode == RefreshMode.AUTO)
             {
@@ -555,13 +801,28 @@ namespace ADBWrapper
                 mBtnAutoRefresh.BeginAnimation(OpacityProperty, da);
 
                 mImgRefreshAuto.Visibility = Visibility.Visible;
+                mImgRefreshRec.Visibility = Visibility.Collapsed;
                 mImgRefreshMutually.Visibility = Visibility.Collapsed;
                 mAdbSendCMDEvent.Set();
+                StopAdbScrRec();
             }
             else if (mRefreshMode == RefreshMode.MUTUAL)
             {
                 mImgRefreshAuto.Visibility = Visibility.Collapsed;
+                mImgRefreshRec.Visibility = Visibility.Collapsed;
                 mImgRefreshMutually.Visibility = Visibility.Visible;
+                StopAdbScrRec();
+            }
+            else if (mRefreshMode == RefreshMode.SCR_REC)
+            {
+                DoubleAnimation da = new DoubleAnimation();
+                da.To = 1;
+                da.Duration = new Duration(TimeSpan.FromSeconds(0.25));
+                mBtnAutoRefresh.BeginAnimation(OpacityProperty, da);
+                mImgRefreshAuto.Visibility = Visibility.Collapsed;
+                mImgRefreshRec.Visibility = Visibility.Visible;
+                mImgRefreshMutually.Visibility = Visibility.Collapsed;
+                StartAdbScrRec();
             }
         }
         private void BtnAutoRefresh_Click(object sender, RoutedEventArgs e)
@@ -575,6 +836,10 @@ namespace ADBWrapper
                 mRefreshMode = RefreshMode.AUTO;
             }
             else if (mRefreshMode == RefreshMode.AUTO)
+            {
+                mRefreshMode = RefreshMode.SCR_REC;
+            }
+            else if (mRefreshMode == RefreshMode.SCR_REC)
             {
                 mRefreshMode = RefreshMode.MUTUAL;
             }
@@ -591,6 +856,8 @@ namespace ADBWrapper
                 mRefreshMode = RefreshMode.MUTUAL;
             else if (sender == mMenuItemQSDisable)
                 mRefreshMode = RefreshMode.DISABLE;
+            else if (sender == mMenuItemQSRecScr)
+                mRefreshMode = RefreshMode.SCR_REC;
             ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
             ADBWrapper.Properties.Settings.Default.Save();
             UpdateBtnAutoRefresh();
@@ -649,6 +916,7 @@ namespace ADBWrapper
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            StopAdbScrRec();
             mAdbClosing = true;
             mRefreshMode = RefreshMode.DISABLE;
             mAdbSendCMDQueueMutex.WaitOne();

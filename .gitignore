@@ -20,3 +20,6 @@ obj/
 [Rr]elease*/
 _ReSharper*/
 ADBWrapper/resource/icon/editing/
+/FFMpegWrapper/ffmpeg/ffmpeg_*
+/.vs/*
+*.mp4

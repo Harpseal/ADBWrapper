@@ -16,6 +16,9 @@
             <Button x:Name="mBtnDebug" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnDebug_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
                 <Label Content="Debug" FontSize="10" Padding="0" Foreground="White"/>
             </Button>
+            <Button x:Name="mBtnDebug2" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnDebug_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
+                <Label Content="Debug" FontSize="10" Padding="0" Foreground="White"/>
+            </Button>
         </StackPanel>
         <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove"/>
         <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="2" HorizontalAlignment="Right">
@@ -86,11 +89,13 @@
                     <Image Source="resource/icon/btn_more.png"/>
                     <Image Source="resource/icon/round_refresh_white_36dp.png" x:Name="mImgRefreshMutually"/>
                     <Image Source="resource/icon/round_refresh_white_auto_36dp.png" x:Name="mImgRefreshAuto" Visibility="Hidden"/>
+                    <Image Source="resource/icon/round_videocam_white_36dp.png" x:Name="mImgRefreshRec" Visibility="Hidden"/>
                     <!--Label x:Name="mImgRefreshMutually" Content="Mutu" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                     <!--Label x:Name="mImgRefreshAuto" Content="Auto" FontSize="10" Padding="0" Foreground="White" Visibility="Hidden" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
+                        <MenuItem x:Name="mMenuItemQSRecScr" Header="RecScr" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSAuto" Header="Auto" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSMutual" Header="Mutual" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSDisable" Header="Disable" Click="BtnAutoRefreshMenuItem_Click"/>
