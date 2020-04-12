@@ -16,6 +16,7 @@ using System.Windows.Shapes;
 using System.IO;
 using System.Threading;
 using System.Windows.Media.Animation;
+using System.Xml;
 
 namespace ADBWrapper
 {
@@ -53,7 +54,7 @@ namespace ADBWrapper
             SCR_REC
         }
 
-        private RefreshMode mRefreshMode = RefreshMode.MUTUAL;
+        private RefreshMode mRefreshMode = RefreshMode.SCR_REC;
 
         public struct ItemCMD
         {
@@ -87,7 +88,8 @@ namespace ADBWrapper
 
             mRefreshMode = (RefreshMode)ADBWrapper.Properties.Settings.Default.RefreshMode;
 
-            ShowScreenshotFromMemory();
+            if (mRefreshMode != RefreshMode.SCR_REC)
+                ShowScreenshotFromMemory();
 
             mAdbSendCMDThread = new Thread(() => {
                 ItemCMD adb_cmd = new ItemCMD();
@@ -343,6 +345,7 @@ namespace ADBWrapper
             if (!mDecoder.init(27, proc_buf_len*2, true))
                 return false;
             mAdbScrRecThread = new Thread(() => {
+                string errorMsgPre = "";
                 do
                 {
                     System.Diagnostics.Process adb_proc = new System.Diagnostics.Process();
@@ -361,13 +364,16 @@ namespace ADBWrapper
                         if (d.Data != null)
                         {
                             string msg = d.Data.Trim();
-                            Console.WriteLine(msg);
-                            this.Dispatcher.Invoke(() =>
+                            if (msg != errorMsgPre)
                             {
-                                UpdateMessage(msg, MessageLevel.ERROR);
-                            });
+                                Console.WriteLine(msg);
+                                this.Dispatcher.Invoke(() =>
+                                {
+                                    UpdateMessage(msg, MessageLevel.ERROR);
+                                });
+                                errorMsgPre = msg;
+                            }
                         }
-
                     });
 
                     IntPtr unmanagedBuffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(proc_buf_len);
@@ -387,6 +393,8 @@ namespace ADBWrapper
                     {
                         RenderOptions.SetBitmapScalingMode(mAdbScreenShot, BitmapScalingMode.LowQuality);
                         mAdbScreenShot.Opacity = 1;
+                        mLabelUpdatedInterval.Content = "Waiting for stream to start";
+                        mLabelUpdatedIntervalBlur.Content = mLabelUpdatedInterval.Content;
                     });
 
                     int width = 0, height = 0, channels = 0;
@@ -408,7 +416,13 @@ namespace ADBWrapper
 
                         do
                         {
-                            nRead = adb_proc.StandardOutput.Read(chbuffer, 0, chbuffer.Length);
+                            try
+                            {
+                                nRead = adb_proc.StandardOutput.Read(chbuffer, 0, chbuffer.Length);
+                            }
+                            catch (System.NullReferenceException) {
+                                break;
+                            }
                             byte[] binbuffer = encoder.GetBytes(chbuffer, 0, nRead);//chbuffer.Select(c => (byte)c).ToArray();
                             System.Runtime.InteropServices.Marshal.Copy(binbuffer, 0, unmanagedBuffer, binbuffer.Length);
                             System.Runtime.InteropServices.Marshal.WriteInt32(unmanagedWidth, width);
@@ -426,7 +440,7 @@ namespace ADBWrapper
 
                             if (unmanagedImgData != IntPtr.Zero && ret_status == 1)//DECODE_STATUS_OK
                             {
-                                ++num_updated;
+                                
                                 try
                                 {
                                     this.Dispatcher.Invoke(() =>
@@ -444,9 +458,15 @@ namespace ADBWrapper
                                         }
                                         //mAdbScreenShot.Source = bmpsrc;
                                         mAdbScreenShot.Source = wbm;
+                                        if (num_updated == 0)
+                                        {
+                                            mLabelUpdatedInterval.Content = "";
+                                            mLabelUpdatedIntervalBlur.Content = mLabelUpdatedInterval.Content;
+                                        }
                                     });
                                 }
                                 catch (System.Threading.Tasks.TaskCanceledException) { }
+                                ++num_updated;
                             }
 
                             
@@ -497,6 +517,9 @@ namespace ADBWrapper
                     System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedChannels);
                     if (unmanagedImgData != IntPtr.Zero)
                         System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedImgData);
+
+                    if (errorMsgPre.Contains("no devices/emulators found"))
+                        Thread.Sleep(3000);
                 } while (mRefreshMode == RefreshMode.SCR_REC);
                 Console.WriteLine("RecScr thead exited.....");
             });
@@ -508,8 +531,41 @@ namespace ADBWrapper
         {
             mAdbScrRecMutex.WaitOne();
             if (mAdbScrRecProc != null)
+            {
+                mAdbScrRecProc.StandardOutput.Close();
                 mAdbScrRecProc.Close();
+            }
             mAdbScrRecMutex.ReleaseMutex();
+            return true;
+        }
+
+        bool ReadAdbCmdXml(string path = "")
+        {
+            if (path.Length == 0)
+                path = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location) + "\\ActivityList.xml";
+
+            try
+            {
+                XmlDocument XmlDoc = new XmlDocument();
+                XmlDoc.Load(path);
+                XmlNodeList xmlActivityList = XmlDoc.SelectNodes("Root/ActivityList/Activity");
+
+                foreach (XmlNode a in xmlActivityList)
+                {
+                    Console.WriteLine(a.Attributes["name"].Value + ":" + a.Attributes["cmd"].Value);
+                    MenuItem mitem = new MenuItem();
+                    mitem.Header = a.Attributes["name"].Value;
+                    mitem.Click += BtnSettingsMenuItem_Click;
+                    mitem.ToolTip = a.Attributes["cmd"].Value;
+                    mContextMenuActivityList.Items.Add(mitem);
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+                return false;
+            }
+
             return true;
         }
 
@@ -768,14 +824,17 @@ namespace ADBWrapper
                 AdbCMDShell("am start -n com.android.settings/.Settings\\$SystemDashboardActivity");
             else if (sender == mMenuItemSettingsDev)
                 AdbCMDShell("am start -n com.android.settings/.Settings\\$DevelopmentSettingsActivity");
-            else if (sender == mMenuItemSettingsDevDashboard)
-                AdbCMDShell("am start -n com.android.settings/.Settings\\$DevelopmentSettingsDashboardActivity");
             else if (sender == mMenuItemCamera)
                 AdbCMDShell("am start -a android.media.action.IMAGE_CAPTURE");
-            else if (sender == mMenuItemCameraMTK)
-                AdbCMDShell("am start -n com.mediatek.camera/.CameraLauncher");
-            else if (sender == mMenuItemMTKLogger)
-                AdbCMDShell("am start -n com.mediatek.mtklogger/.MainActivity");
+            else
+            {
+                MenuItem mitem = sender as MenuItem;
+                if (mitem != null)
+                {
+                    Console.WriteLine("cmd:[" + mitem.ToolTip.ToString() + "]");
+                    AdbCMDShell(mitem.ToolTip.ToString());
+                }
+            }
         }
 
         private void UpdateBtnAutoRefresh()
@@ -857,7 +916,14 @@ namespace ADBWrapper
             else if (sender == mMenuItemQSDisable)
                 mRefreshMode = RefreshMode.DISABLE;
             else if (sender == mMenuItemQSRecScr)
+            {
+                if (mRefreshMode == RefreshMode.SCR_REC)//Restart stream...
+                {
+                    StopAdbScrRec();
+                    return;
+                }
                 mRefreshMode = RefreshMode.SCR_REC;
+            }
             ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
             ADBWrapper.Properties.Settings.Default.Save();
             UpdateBtnAutoRefresh();
@@ -884,7 +950,12 @@ namespace ADBWrapper
             TimeSpan diff = DateTime.Now - mMousePressedTime;
 
             if (mIsRightPressed)
-                ShowScreenshotFromMemory();
+            {
+                if (mRefreshMode == RefreshMode.SCR_REC)
+                    StopAdbScrRec();
+                else
+                    ShowScreenshotFromMemory();
+            }
             else
             {
                 if (Math.Abs(adb_pos.X - mMousePressPosition.X) < 2 &&
@@ -912,6 +983,7 @@ namespace ADBWrapper
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             UpdateBtnAutoRefresh();
+            ReadAdbCmdXml();
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)

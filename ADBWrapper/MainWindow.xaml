@@ -74,13 +74,10 @@
                     <!--Label Content="Sett" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
-                    <ContextMenu>
+                    <ContextMenu x:Name="mContextMenuActivityList">
                         <MenuItem x:Name="mMenuItemSettingsSysInfo" Header="SysInfo" Click="BtnSettingsMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemSettingsDev" Header="Dev" Click="BtnSettingsMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemSettingsDevDashboard" Header="Dev(Dashboard)" Click="BtnSettingsMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemCamera" Header="Camera" Click="BtnSettingsMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemCameraMTK" Header="Camera(MTK)" Click="BtnSettingsMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemMTKLogger" Header="MTKLogger" Click="BtnSettingsMenuItem_Click"/>
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
