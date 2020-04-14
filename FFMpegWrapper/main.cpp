@@ -55,7 +55,7 @@ int main(int argc, char** argv)
 
     uint8_t* data;
     size_t   data_size;
-    int width = 0, height = 0, channels = 1;
+    int width = 0, height = 0, channels = 0;
     uint8_t* imgData = nullptr;
     int imgIdx = 0;
 

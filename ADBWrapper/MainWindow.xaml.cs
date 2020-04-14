@@ -17,6 +17,7 @@ using System.IO;
 using System.Threading;
 using System.Windows.Media.Animation;
 using System.Xml;
+using System.Text.RegularExpressions;
 
 namespace ADBWrapper
 {
@@ -51,7 +52,8 @@ namespace ADBWrapper
             AUTO = 0,
             MUTUAL,
             DISABLE,
-            SCR_REC
+            SCR_REC,
+            SCR_REC_Gray
         }
 
         private RefreshMode mRefreshMode = RefreshMode.SCR_REC;
@@ -88,7 +90,7 @@ namespace ADBWrapper
 
             mRefreshMode = (RefreshMode)ADBWrapper.Properties.Settings.Default.RefreshMode;
 
-            if (mRefreshMode != RefreshMode.SCR_REC)
+            if (mRefreshMode != RefreshMode.SCR_REC && mRefreshMode != RefreshMode.SCR_REC_Gray)
                 ShowScreenshotFromMemory();
 
             mAdbSendCMDThread = new Thread(() => {
@@ -355,6 +357,7 @@ namespace ADBWrapper
 
                     adb_proc.StartInfo.StandardOutputEncoding = System.Text.Encoding.GetEncoding("latin1");
 
+                    adb_proc.StartInfo.RedirectStandardInput = true;
                     adb_proc.StartInfo.RedirectStandardOutput = true;
                     adb_proc.StartInfo.RedirectStandardError = true;
                     adb_proc.StartInfo.CreateNoWindow = true;
@@ -397,8 +400,8 @@ namespace ADBWrapper
                         mLabelUpdatedIntervalBlur.Content = mLabelUpdatedInterval.Content;
                     });
 
-                    int width = 0, height = 0, channels = 0;
-                    int num_skip = 0, num_updated = 0;
+                    int width = 0, height = 0, channels = mRefreshMode == RefreshMode.SCR_REC_Gray ? 1 : 0;
+                    int num_updated = 0;
                     try
                     {
 
@@ -458,9 +461,9 @@ namespace ADBWrapper
                                         }
                                         //mAdbScreenShot.Source = bmpsrc;
                                         mAdbScreenShot.Source = wbm;
-                                        if (num_updated == 0)
+                                        if ((num_updated % 30) == 0)
                                         {
-                                            mLabelUpdatedInterval.Content = "";
+                                            mLabelUpdatedInterval.Content = String.Format("dec:{0:0.00}ms,cvt:{1:0.00}ms", mDecoder.getPerformance(0) * 1000, mDecoder.getPerformance(1) * 1000);
                                             mLabelUpdatedIntervalBlur.Content = mLabelUpdatedInterval.Content;
                                         }
                                     });
@@ -470,7 +473,7 @@ namespace ADBWrapper
                             }
 
                             
-                            if ((w * h * c != 0) && (w != width || h != height || c != channels))
+                            if ((w * h * c > 0) && (w != width || h != height || c != channels))
                             {
                                 width = w;
                                 height = h;
@@ -480,7 +483,7 @@ namespace ADBWrapper
                                     System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedImgData);
                                 unmanagedImgData = System.Runtime.InteropServices.Marshal.AllocHGlobal(width * height * channels);
                                 wbm = null;
-                                Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} {5}", nRead, ret_status, width, height, channels, num_updated);
+                                Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} {5} NEW!", nRead, ret_status, width, height, channels, num_updated);
 
                             }
                             else if ((num_updated % 40) == 0)
@@ -488,7 +491,7 @@ namespace ADBWrapper
                             //
                         } while (nRead != 0 || !adb_proc.HasExited);
                         Console.WriteLine("RecScr stoped.....");
-                    
+                        
                     }
                     catch (System.ComponentModel.Win32Exception e)
                     {
@@ -520,7 +523,7 @@ namespace ADBWrapper
 
                     if (errorMsgPre.Contains("no devices/emulators found"))
                         Thread.Sleep(3000);
-                } while (mRefreshMode == RefreshMode.SCR_REC);
+                } while (mRefreshMode == RefreshMode.SCR_REC || mRefreshMode == RefreshMode.SCR_REC_Gray);
                 Console.WriteLine("RecScr thead exited.....");
             });
             mAdbScrRecThread.Start();
@@ -531,10 +534,7 @@ namespace ADBWrapper
         {
             mAdbScrRecMutex.WaitOne();
             if (mAdbScrRecProc != null)
-            {
-                mAdbScrRecProc.StandardOutput.Close();
                 mAdbScrRecProc.Close();
-            }
             mAdbScrRecMutex.ReleaseMutex();
             return true;
         }
@@ -549,6 +549,15 @@ namespace ADBWrapper
                 XmlDocument XmlDoc = new XmlDocument();
                 XmlDoc.Load(path);
                 XmlNodeList xmlActivityList = XmlDoc.SelectNodes("Root/ActivityList/Activity");
+
+                if (xmlActivityList.Count > 0)//replace default menu
+                {
+                    foreach (var i in mContextMenuActivityList.Items)
+                    {
+                        MenuItem m = i as MenuItem;
+                        if (m != null) m.Visibility = Visibility.Collapsed;
+                    }
+                }
 
                 foreach (XmlNode a in xmlActivityList)
                 {
@@ -745,18 +754,38 @@ namespace ADBWrapper
             return true;
         }
         
+        private int getOrientation()
+        {
+            MemoryStream mem_stream = new MemoryStream();
+            bool res;
+            int ori = -1;
+            if ((res = RunCMDtoMEM(mAdbPath, "shell \"dumpsys input | grep 'SurfaceOrientation'\"", ref mem_stream)) && mem_stream.Length != 0)
+            {
+                string resStr = System.Text.Encoding.GetEncoding("latin1").GetString(mem_stream.ToArray());
+                Regex regex = new Regex("SurfaceOrientation\\:\\s*(\\d+)", RegexOptions.IgnoreCase);
+                MatchCollection matches = regex.Matches(resStr);
+                foreach (Match match in matches)
+                {
+                    GroupCollection groups = match.Groups;
+                    if (groups.Count >= 2)
+                    {
+                        ori = Int32.Parse(groups[1].Value);
+                    }
+                }
+            }
+            return ori;
+        }
 
         private void BtnDebug_Click(object sender, RoutedEventArgs e)
         {
             if (sender == mBtnDebug)
             {
-                mRefreshMode = RefreshMode.SCR_REC;
-                StartAdbScrRec();
+                Console.WriteLine("ori " + getOrientation());
             }
             else if (sender == mBtnDebug2)
             {
-                mRefreshMode = RefreshMode.DISABLE;
-                StopAdbScrRec();
+                //mRefreshMode = RefreshMode.DISABLE;
+                //StopAdbScrRec();
             }
         }
 
@@ -764,21 +793,21 @@ namespace ADBWrapper
         private void BtnPower_Click(object sender, RoutedEventArgs e)
         {
             AdbCMDShell("input keyevent 26");
-            if (mRefreshMode != RefreshMode.AUTO)
+            if (mRefreshMode == RefreshMode.MUTUAL || mRefreshMode == RefreshMode.DISABLE)
                 ShowScreenshotFromMemory();
         }
 
         private void BtnHome_Click(object sender, RoutedEventArgs e)
         {
             AdbCMDShell("input keyevent 3");
-            if (mRefreshMode != RefreshMode.AUTO)
+            if (mRefreshMode == RefreshMode.MUTUAL || mRefreshMode == RefreshMode.DISABLE)
                 ShowScreenshotFromMemory();
         }
 
         private void BtnBack_Click(object sender, RoutedEventArgs e)
         {
             AdbCMDShell("input keyevent 4");
-            if (mRefreshMode != RefreshMode.AUTO)
+            if (mRefreshMode == RefreshMode.MUTUAL || mRefreshMode == RefreshMode.DISABLE)
                 ShowScreenshotFromMemory();
         }
 
@@ -872,7 +901,7 @@ namespace ADBWrapper
                 mImgRefreshMutually.Visibility = Visibility.Visible;
                 StopAdbScrRec();
             }
-            else if (mRefreshMode == RefreshMode.SCR_REC)
+            else if (mRefreshMode == RefreshMode.SCR_REC || mRefreshMode == RefreshMode.SCR_REC_Gray)
             {
                 DoubleAnimation da = new DoubleAnimation();
                 da.To = 1;
@@ -900,6 +929,10 @@ namespace ADBWrapper
             }
             else if (mRefreshMode == RefreshMode.SCR_REC)
             {
+                mRefreshMode = RefreshMode.SCR_REC_Gray;
+            }
+            else if (mRefreshMode == RefreshMode.SCR_REC_Gray)
+            {
                 mRefreshMode = RefreshMode.MUTUAL;
             }
             ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
@@ -915,14 +948,17 @@ namespace ADBWrapper
                 mRefreshMode = RefreshMode.MUTUAL;
             else if (sender == mMenuItemQSDisable)
                 mRefreshMode = RefreshMode.DISABLE;
-            else if (sender == mMenuItemQSRecScr)
+            else if (sender == mMenuItemQSRecScr || sender == mMenuItemQSRecScrGray)
             {
-                if (mRefreshMode == RefreshMode.SCR_REC)//Restart stream...
+                if (mRefreshMode == RefreshMode.SCR_REC_Gray || mRefreshMode == RefreshMode.SCR_REC)
                 {
+                    mRefreshMode = sender == mMenuItemQSRecScr ? RefreshMode.SCR_REC : RefreshMode.SCR_REC_Gray;
                     StopAdbScrRec();
+                    ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
+                    ADBWrapper.Properties.Settings.Default.Save();
                     return;
                 }
-                mRefreshMode = RefreshMode.SCR_REC;
+                mRefreshMode = sender == mMenuItemQSRecScr ? RefreshMode.SCR_REC : RefreshMode.SCR_REC_Gray;
             }
             ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
             ADBWrapper.Properties.Settings.Default.Save();
@@ -951,7 +987,7 @@ namespace ADBWrapper
 
             if (mIsRightPressed)
             {
-                if (mRefreshMode == RefreshMode.SCR_REC)
+                if (mRefreshMode == RefreshMode.SCR_REC || mRefreshMode == RefreshMode.SCR_REC_Gray)
                     StopAdbScrRec();
                 else
                     ShowScreenshotFromMemory();
@@ -986,9 +1022,17 @@ namespace ADBWrapper
             ReadAdbCmdXml();
         }
 
+
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            StopAdbScrRec();
+            mAdbScrRecMutex.WaitOne();
+            if (mAdbScrRecProc != null)
+            {
+                mAdbScrRecProc.Kill();
+            }
+            mAdbScrRecMutex.ReleaseMutex();
+            mAdbScrRecThread.Abort();
+            
             mAdbClosing = true;
             mRefreshMode = RefreshMode.DISABLE;
             mAdbSendCMDQueueMutex.WaitOne();
@@ -999,8 +1043,6 @@ namespace ADBWrapper
             mAdbCMDMutex.ReleaseMutex();
 
             mAdbSendCMDEvent.Set();
-            //Console.WriteLine("before Join....");
-            //mAdbSendCMDThread.Join();
         }
 
         private void BtnScrMenuItem_Click(object sender, RoutedEventArgs e)

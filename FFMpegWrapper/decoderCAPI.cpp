@@ -2,8 +2,11 @@
 #include "decoderCAPI.h"
 extern "C" {
 #include "libavcodec/avcodec.h"
+#include "libswscale/swscale.h"
+#include "libavutil/imgutils.h"
 }
 #include <string>
+#include <chrono>
 
 class FFMpegDecoder
 {
@@ -14,6 +17,7 @@ public:
 	}
 	~FFMpegDecoder()
 	{
+		printf("~FFMpegDecoder\n");
 		release();
 	}
 
@@ -88,6 +92,8 @@ public:
 			delete[] m_inbuf;
 		if (m_inbuf2 != nullptr)
 			delete[] m_inbuf2;
+		if (m_swscale != nullptr)
+			sws_freeContext(m_swscale);
 
 		m_codec = nullptr;
 		m_parser = nullptr;
@@ -98,6 +104,8 @@ public:
 		m_inbuf_size = m_inbuf_length = 0;
 		m_pkt = nullptr;
 
+		m_swscale = nullptr;
+
 		return true;
 	}
 
@@ -106,6 +114,9 @@ public:
 	{
 		int res_status = DECODE_STATUS_NO_UPDATE;
 		bool is_update_img = false;
+
+		auto start_decode = std::chrono::high_resolution_clock::now();
+
 		while (nRawdata > 0)
 		{
 			int nData = nRawdata;
@@ -159,6 +170,8 @@ public:
 						//printf("processing frame %3d  %d (%d x %d)\n", m_ctx->frame_number, m_frame->linesize[0], m_frame->width, m_frame->height);
 						fflush(stdout);
 
+						auto start = std::chrono::high_resolution_clock::now();
+
 						switch (m_frame->format)//AVPixelFormat
 						{
 						case AV_PIX_FMT_YUV420P:
@@ -182,6 +195,17 @@ public:
 								}
 								else //420 => RGB
 								{
+#if 1
+									AVFrame* frmBGR = av_frame_alloc();
+									ret = av_image_fill_arrays(frmBGR->data, frmBGR->linesize, pOutImgdata, channels==4? AV_PIX_FMT_BGRA : AV_PIX_FMT_BGR24, width, height, 1);
+									if (m_swscale == nullptr)
+										m_swscale = sws_getContext(width, height, AV_PIX_FMT_YUV420P, width, height, channels == 4 ? AV_PIX_FMT_BGRA : AV_PIX_FMT_BGR24,
+											SWS_FAST_BILINEAR, NULL, NULL, NULL);
+									ret = sws_scale(m_swscale, m_frame->data, m_frame->linesize, 0, height, frmBGR->data, frmBGR->linesize);
+
+									av_frame_free(&frmBGR);
+
+#else
 									// Y Plane(luma)
 									byte* y_plane = m_frame->data[0];
 									int stride = m_frame->linesize[0];
@@ -270,7 +294,22 @@ public:
 											}
 										}
 									}
+#endif
 								}
+							}
+							else
+							{
+								if (m_swscale != nullptr)
+								{
+									sws_freeContext(m_swscale);
+									m_swscale = nullptr;
+								}
+
+								m_timeCvtFmt = 0;
+								m_timeCvtFmtCount = 0;
+
+								m_timeDecode = 0;
+								m_timeDecodeCount = 0;
 							}
 							*pOutwidth = width;
 							*pOutheight = height; 
@@ -285,11 +324,10 @@ public:
 							break;
 						}
 
-						/* the picture is allocated by the decoder. no need to
-						   free it */
-						//snprintf(buf, sizeof(buf), "%s-%d.pgm", filename, dec_ctx->frame_number);
-						//pgm_save(frame->data[0], frame->linesize[0],
-						//	frame->width, frame->height, buf);
+						auto finish = std::chrono::high_resolution_clock::now();
+						std::chrono::duration<double> elapsed = finish - start;
+						m_timeCvtFmt += elapsed.count();
+						m_timeCvtFmtCount++;
 					}
 				}
 			}
@@ -307,11 +345,29 @@ public:
 			}
 			m_inbuf_size -= data_processed;
 		}
+		auto finish_decode = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> elapsed_decode = finish_decode - start_decode;
+
+		m_timeDecode += elapsed_decode.count();
+		m_timeDecodeCount++;
+
+		//printf("%.6f / %.6f\n",
+		//	m_timeCvtFmtCount != 0 ? m_timeCvtFmt / m_timeCvtFmtCount : -1,
+		//	m_timeDecodeCount != 0 ? m_timeDecode / m_timeDecodeCount : -1);
 
 		if (is_update_img && res_status == DECODE_STATUS_OK)
 			return DECODE_STATUS_OK;
 		return res_status;
 	}
+
+	double getPerformance(int type)
+	{
+		if (type)
+			return m_timeCvtFmtCount != 0 ? m_timeCvtFmt / m_timeCvtFmtCount : -1;
+		else
+			return m_timeDecodeCount != 0 ? m_timeDecode / m_timeDecodeCount : -1;
+	}
+
 
 private:
 	const AVCodec* m_codec = nullptr;
@@ -324,6 +380,14 @@ private:
 	uint32_t m_inbuf_length = 0;
 	AVPacket* m_pkt = nullptr;
 	bool m_is_bgr = false;
+
+	struct SwsContext* m_swscale = nullptr;
+
+	double m_timeCvtFmt = 0;
+	int m_timeCvtFmtCount = 0;
+
+	double m_timeDecode = 0;
+	int m_timeDecodeCount = 0;
 }; //FFMpegDecoder
 
 
@@ -351,6 +415,11 @@ int FFMpegWrapperCLI::decoderBuffer(System::IntPtr pRawdata, int nRawdata, Syste
 		reinterpret_cast<int*>(pOutchannels.ToPointer()),
 		pImgdata == System::IntPtr::Zero ? nullptr : reinterpret_cast<unsigned char*>(pImgdata.ToPointer())
 	);
+}
+
+double FFMpegWrapperCLI::getPerformance(int type)
+{
+	return m_pDecoder->getPerformance(type);
 }
 
 

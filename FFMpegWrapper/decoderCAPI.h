@@ -24,6 +24,8 @@ public:
 
     bool init(int codec_idx, int buffer_size, bool is_bgr);
     int decoderBuffer(System::IntPtr pRawdata, int nRawdata, System::IntPtr pOutwidth, System::IntPtr pOutheight, System::IntPtr pOutchannels, System::IntPtr pImgdata);
+
+    double getPerformance(int type);
 private:
     FFMpegDecoder* m_pDecoder;
 };

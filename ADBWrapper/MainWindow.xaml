@@ -93,6 +93,7 @@
                 <Button.ContextMenu>
                     <ContextMenu>
                         <MenuItem x:Name="mMenuItemQSRecScr" Header="RecScr" Click="BtnAutoRefreshMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemQSRecScrGray" Header="RecScr(Gray)" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSAuto" Header="Auto" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSMutual" Header="Mutual" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSDisable" Header="Disable" Click="BtnAutoRefreshMenuItem_Click"/>
