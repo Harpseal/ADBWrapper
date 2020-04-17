@@ -344,8 +344,11 @@ namespace ADBWrapper
         {
             int proc_buf_len = 4096*2;
             StopAdbScrRec();
-            if (!mDecoder.init(27, proc_buf_len*2, true))
+            if (!mDecoder.init(-1, proc_buf_len * 2, true))
+            {
+                Console.WriteLine("Error: Decode initialization failed.");
                 return false;
+            }
             mAdbScrRecThread = new Thread(() => {
                 string errorMsgPre = "";
                 do
@@ -539,6 +542,16 @@ namespace ADBWrapper
             return true;
         }
 
+        /*
+            ActivityList replacement trick : ActivityList.xml
+            <?xml version="1.0" encoding="utf-8"?>
+            <Root>
+	            <ActivityList>
+		            <Activity name="SettingsSysInfo"      cmd="am start -n com.android.settings/.Settings\$SystemDashboardActivity"/>
+		            <Activity name="Camera"               cmd="am start -a android.media.action.IMAGE_CAPTURE"/>
+	            </ActivityList>
+            </Root>
+         */
         bool ReadAdbCmdXml(string path = "")
         {
             if (path.Length == 0)
@@ -1027,11 +1040,11 @@ namespace ADBWrapper
         {
             mAdbScrRecMutex.WaitOne();
             if (mAdbScrRecProc != null)
-            {
                 mAdbScrRecProc.Kill();
-            }
+            
             mAdbScrRecMutex.ReleaseMutex();
-            mAdbScrRecThread.Abort();
+            if (mAdbScrRecThread!=null)
+                mAdbScrRecThread.Abort();
             
             mAdbClosing = true;
             mRefreshMode = RefreshMode.DISABLE;

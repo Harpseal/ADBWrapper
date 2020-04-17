@@ -4,9 +4,23 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libswscale/swscale.h"
 #include "libavutil/imgutils.h"
+void ___chkstk_ms();
 }
 #include <string>
 #include <chrono>
+
+#define ENABLE_MINGW32_STATIC_LIB 1
+#if ENABLE_MINGW32_STATIC_LIB
+
+//locate: /usr/x86_64-w64-mingw32/lib/
+#pragma comment(lib,"libmingwex.a")
+#pragma comment(lib,"libmingw32.a")
+#pragma comment(lib,"libmsvcrt.a")
+#pragma comment(lib,"libbcrypt.a")
+//locate: /usr/lib/gcc/x86_64-w64-mingw32/7.3-win32/
+#pragma comment(lib,"libgcc.a")
+
+#endif
 
 class FFMpegDecoder
 {
@@ -53,7 +67,7 @@ public:
 
 		m_parser = av_parser_init(m_codec->id);
 		if (!m_parser) {
-			fprintf(stderr, "parser not found\n");
+			fprintf(stderr, "parser %d not found\n", m_codec->id);
 			return false;
 		}
 

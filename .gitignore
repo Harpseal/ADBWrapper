@@ -23,3 +23,5 @@ ADBWrapper/resource/icon/editing/
 /FFMpegWrapper/ffmpeg/ffmpeg_*
 /.vs/*
 *.mp4
+/FFMpegWrapper/ffmpeg/ffmpeg-*
+/FFMpegWrapper/ffmpeg/lib/*
