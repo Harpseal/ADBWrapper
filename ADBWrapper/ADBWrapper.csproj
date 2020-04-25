@@ -110,9 +110,7 @@
     <Resource Include="resource\icon\btn_more.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="resource\icon\round_arrow_back_ios_white_36dp.png" />
     <Resource Include="resource\icon\round_camera_white_36dp.png" />
-    <Resource Include="resource\icon\round_home_white_36dp.png" />
     <Resource Include="resource\icon\round_power_settings_new_white_36dp.png" />
     <Resource Include="resource\icon\round_refresh_white_36dp.png" />
     <Resource Include="resource\icon\round_refresh_white_auto_36dp.png" />
@@ -125,6 +123,14 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="resource\icon\round_videocam_white_36dp.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="resource\icon\round_nav_back_white_36dp.png" />
+    <Resource Include="resource\icon\round_nav_home_white_36dp.png" />
+    <Resource Include="resource\icon\round_nav_multitask_white_36dp.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="resource\icon\sep.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

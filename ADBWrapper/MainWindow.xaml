@@ -33,20 +33,14 @@
                         <MenuItem x:Name="mMenuItemReboot" Header="Reboot" Click="BtnPowerMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemKillServer" Header="Kill-server" Click="BtnPowerMenuItem_Click"/>
                         <Separator/>
+                        <CheckBox x:Name="mCheckBoxShowMsgIfError" Content="Show msg if error" IsChecked="False"/>
                         <MenuItem x:Name="mMenuItemHideMsg" Header="Show/Hide msg" Click="BtnPowerMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemClrMsg" Header="Clear msg" Click="BtnPowerMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemCopyTouchCmd" Header="Copy shell cmds" Click="BtnPowerMenuItem_Click"/>
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
-            <Button x:Name="mBtnHome" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnHome_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send home keyevent">
-                <!--Label Content="Home" FontSize="10" Padding="0" Foreground="White"/-->
-                <Image Source="resource/icon/round_home_white_36dp.png"/>
-            </Button>
-            <Button x:Name="mBtnBack" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnBack_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send back keyevent">
-                <!--Label Content="Back" FontSize="10" Padding="0" Foreground="White"/-->
-                <Image Source="resource/icon/round_arrow_back_ios_white_36dp.png"/>
-            </Button>
+
             <Button x:Name="mBtnScreenshot" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnScreenshot_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Take a screenshot">
                 <Grid>
                     <Image Source="resource/icon/btn_more.png"/>
@@ -94,11 +88,25 @@
                     <ContextMenu>
                         <MenuItem x:Name="mMenuItemQSRecScr" Header="RecScr" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSRecScrGray" Header="RecScr(Gray)" Click="BtnAutoRefreshMenuItem_Click"/>
+                        <CheckBox x:Name="mCheckBoxEnableOriDetect" IsChecked="True" Content="AutoOrientation"/>
+                        <Separator/>
                         <MenuItem x:Name="mMenuItemQSAuto" Header="Auto" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSMutual" Header="Mutual" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemQSDisable" Header="Disable" Click="BtnAutoRefreshMenuItem_Click"/>
+                        
                     </ContextMenu>
                 </Button.ContextMenu>
+            </Button>
+            <Image Width="32" Source="resource/icon/sep.png" Opacity="0.3"/>
+            <Button x:Name="mBtnBack" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnNav_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send back keyevent">
+                <Image Source="resource/icon/round_nav_back_white_36dp.png"/>
+            </Button>
+            <Button x:Name="mBtnHome" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnNav_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send home keyevent">
+                <Image Source="resource/icon/round_nav_home_white_36dp.png"/>
+            </Button>
+
+            <Button x:Name="mBtnAppSwitch" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnNav_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send app switch keyevent">
+                <Image Source="resource/icon/round_nav_multitask_white_36dp.png"/>
             </Button>
         </StackPanel>
         <Label x:Name="mLabelUpdatedIntervalBlur" Content="" FontSize="10" Padding="0" Foreground="Black" Grid.Column="1" HorizontalAlignment="Left" VerticalContentAlignment="Bottom" VerticalAlignment="Bottom" IsHitTestVisible="false">
