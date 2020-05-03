@@ -30,6 +30,12 @@ namespace ADBWrapper
         [System.Runtime.InteropServices.DllImport("gdi32.dll")]
         public static extern bool DeleteObject(IntPtr hObject);
 
+        [DllImport("Kernel32")]
+        public static extern void AllocConsole();
+
+        [DllImport("Kernel32")]
+        public static extern void FreeConsole();
+
         private string mAdbScreenshotPath = "";
         private string mAdbPath = "adb.exe";
         private int mScreenRotation = 0;
@@ -71,8 +77,10 @@ namespace ADBWrapper
         private bool mAdbClosing = false;
 
         private Point mMousePressPosition;
+        private bool mIsLeftPressed = false;
         private bool mIsRightPressed = false;
         private DateTime mMousePressedTime = DateTime.Now;
+        private bool mIsEnableSendEvent = false;
 
         private DateTime mScreenshotUpdatedTime = DateTime.Now;
 
@@ -81,13 +89,37 @@ namespace ADBWrapper
         public MainWindow()
         {
             InitializeComponent();
-
-            foreach (var arg in Environment.GetCommandLineArgs())
+            
+            var args = Environment.GetCommandLineArgs();
+            for (int i=1;i<args.Length;i++)
             {
-                Console.WriteLine(arg);
+                if (args[i].EndsWith("adb.exe"))
+                    mAdbPath = args[i];
+                else if (args[i] == "--console")
+                    AllocConsole();
+                else if (args[i] == "--wheel" && i + 1 < args.Length)
+                {
+                    string[] arg_wheel = args[i + 1].Split(',');
+                    if (arg_wheel.Length == 4)
+                    {
+                        try
+                        {
+                            m_iMouseWheelSkipFrames = Int32.Parse(arg_wheel[0]);
+                            m_iMouseWheelDeltaScale = Int32.Parse(arg_wheel[1]);
+                            m_iMouseWheelMaxDragDis = Int32.Parse(arg_wheel[2]);
+                            m_iMouseWheelDragTimeMS = Int32.Parse(arg_wheel[3]);
+                        }
+                        catch (FormatException) { };
+
+                    }
+                }
             }
-            if (Environment.GetCommandLineArgs().Length >= 2)
-                mAdbPath = Environment.GetCommandLineArgs()[1];
+
+            Console.WriteLine("--console --wheel skipframes:{0},deltascale:{1},maxdragdis:{2},dragms:{3}",
+                m_iMouseWheelSkipFrames,
+                m_iMouseWheelDeltaScale,
+                m_iMouseWheelMaxDragDis,
+                m_iMouseWheelDragTimeMS);
 
             mRefreshMode = (RefreshMode)ADBWrapper.Properties.Settings.Default.RefreshMode;
 
@@ -195,8 +227,8 @@ namespace ADBWrapper
                     }
                 });
                 mAdbInputProc.Start();
-                
             }
+            Console.WriteLine(cmd);
 
             mAdbInputProc.StandardInput.WriteLine(cmd);
             return true;
@@ -207,10 +239,10 @@ namespace ADBWrapper
             return AdbCMDShell(tapCmd);
         }
 
-        private bool AdbInputSwipe(Point pos0,Point pos1,int duration = 100)
+        private bool AdbInputSwipe(Point pos0,Point pos1,int duration = 100, bool isKeepCMD = true)
         {
             string swipeCmd = "input swipe " + (int)pos0.X + " " + (int)pos0.Y + " " + (int)pos1.X + " " + (int)pos1.Y + " " + duration;
-            return AdbCMDShell(swipeCmd);
+            return AdbCMDShell(swipeCmd, isKeepCMD);
         }
 
         private bool AdbCMD(string arguments)
@@ -266,7 +298,13 @@ namespace ADBWrapper
                 WriteExecption(e.ToString());
                 this.Dispatcher.Invoke(() =>
                 {
-                    UpdateMessage(e.ToString(), MessageLevel.ERROR);
+                    if ((uint)e.ErrorCode == 0x80004005)
+                    {
+                        UpdateMessage("The system cannot find the adb.exe", MessageLevel.ERROR);
+                        ShowMessage(true);
+                    }
+                    else
+                        UpdateMessage(e.ToString(), MessageLevel.ERROR);
                 });
                 mAdbCMDMutex.ReleaseMutex();
                 return false;
@@ -336,7 +374,13 @@ namespace ADBWrapper
                 WriteExecption(e.ToString());
                 this.Dispatcher.Invoke(() =>
                 {
-                    UpdateMessage(e.ToString(), MessageLevel.ERROR);
+                    if ((uint)e.ErrorCode == 0x80004005)
+                    {
+                        UpdateMessage("The system cannot find the adb.exe", MessageLevel.ERROR);
+                        ShowMessage(true);
+                    }
+                    else
+                        UpdateMessage(e.ToString(), MessageLevel.ERROR);
                 });
                 mAdbCMDMutex.ReleaseMutex();
                 return false;
@@ -530,7 +574,6 @@ namespace ADBWrapper
 
                             if (unmanagedImgData != IntPtr.Zero && ret_status == 1)//DECODE_STATUS_OK
                             {
-
                                 bool isCheckOrientation = false;
                                 try
                                 {
@@ -590,8 +633,8 @@ namespace ADBWrapper
                                 Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} {5} NEW!", nRead, ret_status, width, height, channels, num_updated);
 
                             }
-                            else if ((num_updated % 40) == 0)
-                                Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} {5}", nRead, ret_status, width, height, channels, num_updated);
+                            //else if ((num_updated % 40) == 0)
+                            //    Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} {5}", nRead, ret_status, width, height, channels, num_updated);
                             //
                         } while (nRead != 0 || !adb_proc.HasExited);
                         Console.WriteLine("RecScr stoped.....");
@@ -602,16 +645,29 @@ namespace ADBWrapper
                         WriteExecption(e.ToString());
                         this.Dispatcher.Invoke(() =>
                         {
-                            UpdateMessage(e.ToString(), MessageLevel.ERROR);
+                            if ((uint)e.ErrorCode == 0x80004005)
+                            {   
+                                UpdateMessage("The system cannot find the adb.exe", MessageLevel.ERROR);
+                                ShowMessage(true);
+                            }
+                            else
+                                UpdateMessage(e.ToString(), MessageLevel.ERROR);
                         });
+                        if ((uint)e.ErrorCode == 0x80004005)
+                        {
+                            mAdbScrRecMutex.WaitOne();
+                            mAdbScrRecProc = null;
+                            mAdbScrRecMutex.ReleaseMutex();
+                            return;
+                        }
                     }
                     catch (System.InvalidOperationException e)
                     {
-                        //WriteExecption(e.ToString());
-                        //this.Dispatcher.Invoke(() =>
-                        //{
-                        //    UpdateMessage(e.ToString(), MessageLevel.WARNING);
-                        //});
+                        WriteExecption(e.ToString());
+                        this.Dispatcher.Invoke(() =>
+                        {
+                            UpdateMessage(e.ToString(), MessageLevel.WARNING);
+                        });
                     }
                 
                     mAdbScrRecMutex.WaitOne();
@@ -657,7 +713,7 @@ namespace ADBWrapper
         {
             if (path.Length == 0)
                 path = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location) + "\\ActivityList.xml";
-
+            if (!File.Exists(path)) return false;
             try
             {
                 XmlDocument XmlDoc = new XmlDocument();
@@ -1069,6 +1125,70 @@ namespace ADBWrapper
             UpdateBtnAutoRefresh();
         }
 
+        private bool AdbSendEvent(Point pos, int status)
+        {
+            string dev_input = mTextBoxInputDev.Text;
+            if (!Regex.Match(dev_input, @"event\d+").Success && !Regex.Match(dev_input, @"mouse\d+").Success)
+            {
+                mTextBoxInputDev.Text = "";
+                return false;
+            }
+            dev_input = "/dev/input/" + dev_input;
+
+            //https://android.googlesource.com/kernel/goldfish/+/android-goldfish-2.6.29/include/linux/input.h
+            uint DOWN = 1;
+            uint UP = 0;
+
+            uint EV_SYN = 0x0000;
+            uint EV_KEY = 0x0001;
+            uint EV_ABS = 0x0003;
+            
+            uint ABS_MT_POSITION_X  = 0x0035;
+            uint ABS_MT_POSITION_Y  = 0x0036;
+            uint ABS_MT_PRESSURE    = 0x003a;
+            uint ABS_MT_TOUCH_MAJOR = 0x0030;
+            uint SYN_REPORT         = 0x0000;
+            uint ABS_MT_TRACKING_ID = 0x0039;
+            uint BTN_TOOL_FINGER    = 0x145;
+            uint BTN_TOUCH          = 0x14a;
+
+            int touch_event_id = 1;
+
+            bool isSaveCMD = false;
+
+            /*
+             * getevent -p : get command format
+             * getevent -l : list current events 
+             */
+
+            if (status == 1) //touch
+            {
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_ABS, ABS_MT_TRACKING_ID, touch_event_id), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_KEY, BTN_TOUCH, DOWN), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_KEY, BTN_TOOL_FINGER, DOWN), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_ABS, ABS_MT_POSITION_X, (int)pos.X), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_ABS, ABS_MT_POSITION_Y, (int)pos.Y), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_ABS, ABS_MT_PRESSURE, 5), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_ABS, ABS_MT_TOUCH_MAJOR, 5), isSaveCMD);
+            }
+            else if (status == 2) //drag, moving
+            {
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_ABS, ABS_MT_POSITION_X, (int)pos.X), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_ABS, ABS_MT_POSITION_Y, (int)pos.Y), isSaveCMD);
+            }
+            else if (status == 3)// untouch
+            {
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_ABS, ABS_MT_TRACKING_ID, -1), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_KEY, BTN_TOUCH, UP), isSaveCMD);
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_KEY, BTN_TOOL_FINGER, UP), isSaveCMD);
+            }
+
+            if (status != 0)
+                AdbCMDShell(String.Format("sendevent {0} {1} {2} {3}", dev_input, EV_SYN, SYN_REPORT, 0), isSaveCMD);
+
+            return true;
+        }
+
         private void AdbScreenShot_MouseDown(object sender, MouseButtonEventArgs e)
         {
             Point pos = e.GetPosition(mAdbScreenShot);
@@ -1076,9 +1196,13 @@ namespace ADBWrapper
                 pos.Y * mAdbScreenShot.Source.Height / mAdbScreenShot.ActualHeight);
 
             mMousePressPosition = adb_pos;
+            mIsLeftPressed = e.LeftButton == MouseButtonState.Pressed;
             mIsRightPressed = e.RightButton == MouseButtonState.Pressed;
 
             mMousePressedTime = DateTime.Now;
+
+            if (mIsLeftPressed) mIsEnableSendEvent = AdbSendEvent(adb_pos, 1);//touch
+            Console.WriteLine("Down R{0} L{1}", mIsRightPressed, mIsLeftPressed);
         }
 
         private void AdbScreenShot_MouseUp(object sender, MouseButtonEventArgs e)
@@ -1098,18 +1222,82 @@ namespace ADBWrapper
             }
             else
             {
-                if (Math.Abs(adb_pos.X - mMousePressPosition.X) < 2 &&
-                    Math.Abs(adb_pos.Y - mMousePressPosition.Y) < 2 &&
-                    diff.TotalMilliseconds < 150)
-                    AdbInputTap(mMousePressPosition);
-                else
-                    AdbInputSwipe(mMousePressPosition, adb_pos, (int)diff.TotalMilliseconds);
+                if (!mIsEnableSendEvent)
+                {
+                    if (Math.Abs(adb_pos.X - mMousePressPosition.X) < 2 &&
+                        Math.Abs(adb_pos.Y - mMousePressPosition.Y) < 2 &&
+                        diff.TotalMilliseconds < 150)
+                        AdbInputTap(mMousePressPosition);
+                    else
+                        AdbInputSwipe(mMousePressPosition, adb_pos, (int)diff.TotalMilliseconds);
+                }
+                else if (mIsLeftPressed) AdbSendEvent(adb_pos, 3);//untouch
 
                 if (mRefreshMode == RefreshMode.MUTUAL)
                     ShowScreenshotFromMemory();
             }
+            //mIsLeftPressed = mIsRightPressed;
+            mIsLeftPressed = e.LeftButton == MouseButtonState.Pressed;
+            mIsRightPressed = e.RightButton == MouseButtonState.Pressed;
         }
 
+        private int m_iMouseWheelSkipFrames = -1;//15;
+        private int m_iMouseWheelDeltaScale = 25;//25;
+        private int m_iMouseWheelMaxDragDis = 400;//400;
+        private int m_iMouseWheelDragTimeMS = 100;//100;
+
+        private DateTime m_iMouseWheelPre = DateTime.Now;
+        private int m_iMouseWheelDeltaSum = 0;
+        private void AdbScreenShot_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            var diff = DateTime.Now - m_iMouseWheelPre;
+            if (m_iMouseWheelSkipFrames>0)
+            {
+                if ((mMouseMoveSkipCount++ % m_iMouseWheelSkipFrames) == 0)
+                {
+                    Point pos = e.GetPosition(mAdbScreenShot);
+                    Point adb_pos = new Point(pos.X * mAdbScreenShot.Source.Width / mAdbScreenShot.ActualWidth,
+                        pos.Y * mAdbScreenShot.Source.Height / mAdbScreenShot.ActualHeight);
+                    int dis = e.Delta * m_iMouseWheelDeltaScale;
+                    int max_dis = m_iMouseWheelMaxDragDis;
+                    if (dis > max_dis) dis = max_dis;
+                    if (dis < -max_dis) dis = -max_dis;
+                    Point adb_pos1 = new Point(adb_pos.X, adb_pos.Y + dis);
+                    AdbInputSwipe(adb_pos, adb_pos1, m_iMouseWheelDragTimeMS, false);
+                    Console.WriteLine(e.Delta + " " + dis);
+                }
+            }
+            else
+            {
+                
+                if (diff.TotalMilliseconds > m_iMouseWheelDragTimeMS)
+                {
+                    if (m_iMouseWheelDeltaSum != 0)
+                    {
+                        if (Math.Abs(m_iMouseWheelDeltaSum) < m_iMouseWheelDeltaScale)
+                            m_iMouseWheelDeltaSum = m_iMouseWheelDeltaSum > 0 ? m_iMouseWheelDeltaScale : -m_iMouseWheelDeltaScale;
+                        Point pos = e.GetPosition(mAdbScreenShot);
+                        Point adb_pos = new Point(pos.X * mAdbScreenShot.Source.Width / mAdbScreenShot.ActualWidth,
+                            pos.Y * mAdbScreenShot.Source.Height / mAdbScreenShot.ActualHeight);
+                        Point adb_pos1 = new Point(adb_pos.X, adb_pos.Y + m_iMouseWheelDeltaSum);
+                        AdbInputSwipe(adb_pos, adb_pos1, m_iMouseWheelDragTimeMS);
+                        Console.WriteLine(e.Delta + " " + m_iMouseWheelDeltaSum);
+                        m_iMouseWheelDeltaSum = 0;
+                    }
+                    m_iMouseWheelPre = DateTime.Now;
+                }
+                else
+                {
+                    if (m_iMouseWheelDeltaSum == 0)
+                        m_iMouseWheelPre = DateTime.Now;
+                    m_iMouseWheelDeltaSum += e.Delta;
+                }
+            }
+            Console.WriteLine(diff.TotalMilliseconds + " " + m_iMouseWheelDeltaSum);
+        }
+
+
+        int mMouseMoveSkipCount = 0;
         private void AdbScreenShot_MouseMove(object sender, MouseEventArgs e)
         {
             Point pos = e.GetPosition(mAdbScreenShot);
@@ -1118,10 +1306,12 @@ namespace ADBWrapper
 
             this.Title = Application.Current.MainWindow.GetType().Assembly.GetName().Name + String.Format(" - {0:0.},{1:0.} @ {2}x{3}", adb_pos.X, adb_pos.Y, mAdbScreenShot.Source.Width, mAdbScreenShot.Source.Height);
             //Console.WriteLine(Application.Current.MainWindow.GetType().Assembly.GetName().Name + " " + adb_pos.ToString());
+            if (mIsLeftPressed && mIsEnableSendEvent && (++mMouseMoveSkipCount % 5) == 0) AdbSendEvent(adb_pos, 2);//touch
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            mTextBoxInputDev.Text = ADBWrapper.Properties.Settings.Default.InputDev;
             UpdateBtnAutoRefresh();
             ReadAdbCmdXml();
         }
@@ -1150,6 +1340,12 @@ namespace ADBWrapper
             mAdbCMDMutex.ReleaseMutex();
 
             mAdbSendCMDEvent.Set();
+
+            if (ADBWrapper.Properties.Settings.Default.InputDev != mTextBoxInputDev.Text.ToString())
+            {
+                ADBWrapper.Properties.Settings.Default.InputDev = mTextBoxInputDev.Text;
+                ADBWrapper.Properties.Settings.Default.Save();
+            }
         }
 
         private void BtnScrMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1165,6 +1361,8 @@ namespace ADBWrapper
                 AdbCMD("reboot");
             else if (sender == mMenuItemKillServer)
                 AdbCMD("kill-server");
+            else if (sender == mMenuItemSU)
+                AdbCMDShell("su",false);
             else if (sender == mMenuItemHideMsg)
             {
                 ShowMessage(mRichTextBoxMessage.Opacity < 0.5);

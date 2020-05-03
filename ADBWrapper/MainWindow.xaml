@@ -20,7 +20,7 @@
                 <Label Content="Debug" FontSize="10" Padding="0" Foreground="White"/>
             </Button>
         </StackPanel>
-        <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove"/>
+        <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove" MouseWheel="AdbScreenShot_MouseWheel"/>
         <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="2" HorizontalAlignment="Right">
             <Button x:Name="mBtnPower" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnPower_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send power keyevent">
                 <Grid>
@@ -32,6 +32,12 @@
                     <ContextMenu>
                         <MenuItem x:Name="mMenuItemReboot" Header="Reboot" Click="BtnPowerMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemKillServer" Header="Kill-server" Click="BtnPowerMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemSU" Header="su" Click="BtnPowerMenuItem_Click"/>
+                        <Separator/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="/dev/input/"/>
+                            <TextBox x:Name="mTextBoxInputDev" Width="64"/>
+                        </StackPanel>
                         <Separator/>
                         <CheckBox x:Name="mCheckBoxShowMsgIfError" Content="Show msg if error" IsChecked="False"/>
                         <MenuItem x:Name="mMenuItemHideMsg" Header="Show/Hide msg" Click="BtnPowerMenuItem_Click"/>
