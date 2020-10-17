@@ -38,6 +38,7 @@
                             <TextBlock Text="/dev/input/"/>
                             <TextBox x:Name="mTextBoxInputDev" Width="64"/>
                         </StackPanel>
+                        <MenuItem x:Name="mMenuItemInputSelector" Header="Input selector" MouseEnter="MenuItemInputSelector_MouseEnter" />
                         <Separator/>
                         <CheckBox x:Name="mCheckBoxShowMsgIfError" Content="Show msg if error" IsChecked="False"/>
                         <MenuItem x:Name="mMenuItemHideMsg" Header="Show/Hide msg" Click="BtnPowerMenuItem_Click"/>

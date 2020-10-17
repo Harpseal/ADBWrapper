@@ -1280,7 +1280,7 @@ namespace ADBWrapper
                         Point adb_pos = new Point(pos.X * mAdbScreenShot.Source.Width / mAdbScreenShot.ActualWidth,
                             pos.Y * mAdbScreenShot.Source.Height / mAdbScreenShot.ActualHeight);
                         Point adb_pos1 = new Point(adb_pos.X, adb_pos.Y + m_iMouseWheelDeltaSum);
-                        AdbInputSwipe(adb_pos, adb_pos1, m_iMouseWheelDragTimeMS);
+                        AdbInputSwipe(adb_pos, adb_pos1, m_iMouseWheelDragTimeMS, false);
                         Console.WriteLine(e.Delta + " " + m_iMouseWheelDeltaSum);
                         m_iMouseWheelDeltaSum = 0;
                     }
@@ -1429,6 +1429,106 @@ namespace ADBWrapper
             da.Duration = new Duration(TimeSpan.FromSeconds(0.25));
             mRichTextBoxMessage.BeginAnimation(OpacityProperty, da);
             mRichTextBoxMessageBlur.BeginAnimation(OpacityProperty, da);
+        }
+
+        private void RefreshInputSelector()
+        {
+            ItemCMD adb_cmd_getinput = new ItemCMD();
+            adb_cmd_getinput.filename = mAdbPath;
+            adb_cmd_getinput.arguments = "shell getevent -p";
+            adb_cmd_getinput.onCompleted = delegate (object o)
+            {
+                if (o.GetType().Name == "MemoryStream")
+                {
+                    MemoryStream mem = o as MemoryStream;
+                    if (mem != null && mem.Length != 0)
+                    {
+                        string[] cmd_lines = Encoding.ASCII.GetString(mem.ToArray()).Split(
+                            new[] { "\r\n", "\r", "\n" },
+                            StringSplitOptions.None
+                        );
+
+                        Regex regexEvent = new Regex("/dev/input/event\\d+");
+                        MatchCollection matches;
+                        Dictionary<string, string> dictInput = new Dictionary<string, string>();
+
+                        void addDict(Dictionary<string, string> dict, string key, string[] lines, int idx_start, int idx_end){
+                            string value = "";
+                            for (int l = idx_start; l < idx_end; l++)
+                            {
+                                value += lines[l].Trim();
+                                if (l + 1 < idx_end) value += Environment.NewLine;
+                            }
+                            dict[key] = value.Trim();
+                        };
+
+                        string dev_name = "";
+                        int dev_idx = -1;
+                        for (int i = 0; i < cmd_lines.Length; i++)
+                        {
+                            matches = regexEvent.Matches(cmd_lines[i]);
+                            
+                            if (matches.Count != 0 && matches[0].Groups.Count > 0)
+                            {
+                                if (dev_idx >= 0) addDict(dictInput, dev_name, cmd_lines, dev_idx, i);
+                                GroupCollection groups = matches[0].Groups;
+                                dev_name = groups[0].Value;
+                                dev_idx = i;
+                            }
+                            Console.WriteLine("{0}={2} {3} {4} : {1}", i, cmd_lines[i], matches.Count,dev_idx,dev_name);
+                        }
+                        if (dev_idx >= 0) addDict(dictInput, dev_name, cmd_lines, dev_idx, cmd_lines.Length);
+
+                        if (dictInput.Count > 0)
+                        {
+                            this.Dispatcher.Invoke(() =>
+                            {
+                                var l = dictInput.OrderBy(key => key.Key);
+                                var dic = l.ToDictionary((keyItem) => keyItem.Key, (valueItem) => valueItem.Value);
+
+                                SortedDictionary<string, string> dictInputSorted = new SortedDictionary<string, string>(dictInput);
+                                MenuItem item;
+                                mMenuItemInputSelector.Items.Clear();
+                                foreach (var p in dictInputSorted)
+                                {
+                                    item = new MenuItem();
+                                    item.Header = p.Key;
+                                    item.ToolTip = p.Value;
+                                    item.Click += (s,x)=> {
+                                        MenuItem clickedItem = (MenuItem)s;
+                                        if (clickedItem != null)
+                                        {
+                                            Console.WriteLine("click " + clickedItem.Header.ToString());
+                                            mTextBoxInputDev.Text = clickedItem.Header.ToString().Replace("/dev/input/", "");
+                                        }
+                                    };
+                                    mMenuItemInputSelector.Items.Add(item);
+                                }
+                                mMenuItemInputSelector.Items.Add(new Separator());
+                                item = new MenuItem();
+                                item.Header = "Refresh list";
+                                item.Click += (s, x) => {
+                                    RefreshInputSelector();
+                                };
+                                mMenuItemInputSelector.Items.Add(item);
+                            });
+                        }
+                    }
+                }
+            };
+            mAdbSendCMDQueueMutex.WaitOne();
+            mAdbSendCMDQueue.Enqueue(adb_cmd_getinput);
+            mAdbSendCMDQueueMutex.ReleaseMutex();
+
+            mAdbSendCMDEvent.Set();
+        }
+
+        private void MenuItemInputSelector_MouseEnter(object sender, MouseEventArgs e)
+        {
+            if (mMenuItemInputSelector.Items.Count == 0)
+            {
+                RefreshInputSelector();
+            }
         }
     }
 }
