@@ -31,7 +31,6 @@ public:
 	}
 	~FFMpegDecoder()
 	{
-		printf("~FFMpegDecoder\n");
 		release();
 	}
 
@@ -120,6 +119,8 @@ public:
 
 		m_swscale = nullptr;
 
+		stopRecMP4();
+
 		return true;
 	}
 
@@ -172,6 +173,7 @@ public:
 						res_status = DECODE_STATUS_ERROR;
 					}
 
+					bool isFirstFrame = true;
 					while (ret >= 0) {
 						ret = avcodec_receive_frame(m_ctx, m_frame);
 						if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
@@ -180,6 +182,39 @@ public:
 							fprintf(stderr, "Error during decoding\n");
 							res_status = DECODE_STATUS_ERROR;
 						}
+
+						if (m_frame->key_frame && isFirstFrame)
+							m_isMp4GotKeyFrame = true;
+						//printf("AVFrame %d %d %d\n", m_frame->key_frame, isFirstFrame, m_isMp4GotKeyFrame);
+						isFirstFrame = false;
+
+						//if (m_pMp4File)
+						//{
+						//	AVPacket pkt;
+						//	ret = avcodec_send_frame(m_ctxEnc, m_frame);
+						//	if (ret < 0) {
+						//		fprintf(stderr, "Error sending a frame for encoding %d\n", ret);
+						//	}
+						//	while (ret >= 0) {
+						//		ret = avcodec_receive_packet(m_ctxEnc, &pkt);
+						//		if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+						//			return (ret == AVERROR(EAGAIN)) ? 0 : 1;
+						//		}
+						//		else if (ret < 0) {
+						//			fprintf(stderr, "Error during encoding %d\n", ret);
+						//		}
+						//		else
+						//		{
+						//			fwrite(pkt.data, 1, pkt.size, m_pMp4File);
+						//			fprintf(stdout, "write frame %p %d\n", pkt.data, pkt.size);
+						//			 
+						//			av_packet_unref(&pkt);
+						//		}
+
+						//	}
+						//}
+
+						
 
 						//printf("processing frame %3d  %d (%d x %d)\n", m_ctx->frame_number, m_frame->linesize[0], m_frame->width, m_frame->height);
 						fflush(stdout);
@@ -338,6 +373,13 @@ public:
 							break;
 						}
 
+
+						//printf("Packet %X %d %p %d\n", m_pkt->flags, m_isMp4GotKeyFrame, m_pkt->data, m_pkt->size);
+						if (m_pMp4File && m_isMp4GotKeyFrame)
+						{
+							fwrite(m_pkt->data, 1, m_pkt->size, m_pMp4File);
+						}
+
 						auto finish = std::chrono::high_resolution_clock::now();
 						std::chrono::duration<double> elapsed = finish - start;
 						m_timeCvtFmt += elapsed.count();
@@ -382,7 +424,41 @@ public:
 			return m_timeDecodeCount != 0 ? m_timeDecode / m_timeDecodeCount : -1;
 	}
 
+	bool startRecMP4(const char* str)
+	{
+		stopRecMP4();
+		m_pMp4File = fopen(str, "wb");
+		m_isMp4GotKeyFrame = false;
+		m_timeMp4Start = std::chrono::high_resolution_clock::now();
+		//printf("mp4: %s %p\n", str, m_pMp4File);
+		return m_pMp4File != nullptr;
+	}
+	void stopRecMP4()
+	{	
+		int ret = 0;
+		if (m_pMp4File != nullptr)
+			ret = fclose(m_pMp4File);
+		//printf("stopRecMP4 %p %d\n", m_pMp4File,ret);
+		m_pMp4File = nullptr;
+		m_isMp4GotKeyFrame = false;
+	}
+	bool isRecMP4()
+	{
+		return m_pMp4File != nullptr;
+	}
 
+	double getRecMP4Seconds()
+	{
+		if (m_pMp4File == nullptr) return 0;
+
+		std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - m_timeMp4Start;
+		return elapsed.count();
+	}
+
+	void testStr(System::String^ str)
+	{
+
+	}
 private:
 	const AVCodec* m_codec = nullptr;
 	AVCodecParserContext* m_parser = nullptr;
@@ -402,9 +478,34 @@ private:
 
 	double m_timeDecode = 0;
 	int m_timeDecodeCount = 0;
+
+	//For screen recording
+	FILE* m_pMp4File = nullptr;
+	bool m_isMp4GotKeyFrame = false;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_timeMp4Start = std::chrono::high_resolution_clock::now();
+
+	
 }; //FFMpegDecoder
 
+void MarshalString(System::String^ s, std::string& os) {
+	using namespace System::Runtime::InteropServices;
+	const char* chars =
+		(const char*)(Marshal::StringToHGlobalAnsi(s)).ToPointer();
+	os = chars;
+	Marshal::FreeHGlobal(System::IntPtr((void*)chars));
+}
 
+void MarshalString(System::String^ s, char* pstr, int nstr) {
+	using namespace System::Runtime::InteropServices;
+	const char* chars =
+		(const char*)(Marshal::StringToHGlobalAnsi(s)).ToPointer();
+	//printf("MarshalString %p %d %p %c\n", pstr, nstr, chars, chars[0]);
+	strcpy(pstr, chars);
+	//strcpy_s(pstr, nstr, chars);
+	Marshal::FreeHGlobal(System::IntPtr((void*)chars));
+}
+
+#include <msclr\lock.h>
 FFMpegWrapperCLI::FFMpegWrapperCLI()
 {
 	m_pDecoder = new FFMpegDecoder();
@@ -417,12 +518,14 @@ FFMpegWrapperCLI::~FFMpegWrapperCLI()
 
 bool FFMpegWrapperCLI::init(int codec_idx, int buffer_size, bool is_bgr)
 {
+	msclr::lock(this);
 	return m_pDecoder->init(codec_idx, buffer_size, is_bgr);
 }
 
 
 int FFMpegWrapperCLI::decoderBuffer(System::IntPtr pRawdata, int nRawdata, System::IntPtr pOutwidth, System::IntPtr pOutheight, System::IntPtr pOutchannels, System::IntPtr pImgdata)
 {
+	msclr::lock(this);
 	return m_pDecoder->decode(reinterpret_cast<unsigned char*>(pRawdata.ToPointer()), nRawdata,
 		reinterpret_cast<int*>(pOutwidth.ToPointer()),
 		reinterpret_cast<int*>(pOutheight.ToPointer()),
@@ -434,6 +537,31 @@ int FFMpegWrapperCLI::decoderBuffer(System::IntPtr pRawdata, int nRawdata, Syste
 double FFMpegWrapperCLI::getPerformance(int type)
 {
 	return m_pDecoder->getPerformance(type);
+}
+
+bool FFMpegWrapperCLI::startRecMP4(System::String^ str)
+{
+	msclr::lock(this);
+	using namespace System::Runtime::InteropServices;
+	const char* chars =
+		(const char*)(Marshal::StringToHGlobalAnsi(str)).ToPointer();
+	bool res = m_pDecoder->startRecMP4(chars);
+	Marshal::FreeHGlobal(System::IntPtr((void*)chars));
+	return res;
+}
+void FFMpegWrapperCLI::stopRecMP4()
+{
+	msclr::lock(this);
+	m_pDecoder->stopRecMP4();
+}
+bool FFMpegWrapperCLI::isRecMP4()
+{
+	return m_pDecoder->isRecMP4();
+}
+
+double FFMpegWrapperCLI::getRecMP4Seconds()
+{
+	return m_pDecoder->getRecMP4Seconds();
 }
 
 
@@ -462,4 +590,5 @@ int decoderBuffer(void* pDecoder, byte* pRawdata, int nRawdata, int* outwidth, i
 	FFMpegDecoder* pDecoderImp = (FFMpegDecoder*)pDecoder;
 	return pDecoderImp->decode(pRawdata, nRawdata, outwidth, outheight, outchannels, pImgdata);
 }
+
 

@@ -76,6 +76,16 @@ namespace ADBWrapper
         private Queue<ItemCMD> mAdbSendCMDQueue = new Queue<ItemCMD>();
         private bool mAdbClosing = false;
 
+        public class DeviceInfo
+        {
+            public string name;
+            public string ip;
+        }
+        private List<DeviceInfo> mDeviceList = null;
+        private DeviceInfo mDevice = null;
+        private const int TCP_PORT = 5555;
+
+
         private Point mMousePressPosition;
         private bool mIsLeftPressed = false;
         private bool mIsRightPressed = false;
@@ -123,8 +133,37 @@ namespace ADBWrapper
 
             mRefreshMode = (RefreshMode)ADBWrapper.Properties.Settings.Default.RefreshMode;
 
+            if (mRefreshMode == RefreshMode.SCR_REC)
+                mMenuItemQSRecScr.IsChecked = true;
+            else if (mRefreshMode == RefreshMode.SCR_REC_Gray)
+                mMenuItemQSRecScrGray.IsChecked = true;
             if (mRefreshMode != RefreshMode.SCR_REC && mRefreshMode != RefreshMode.SCR_REC_Gray)
                 ShowScreenshotFromMemory();
+
+            UpdateDeviceList();
+
+            if (mDeviceList != null && mDeviceList.Count>=2)
+            {
+                List<string> deviceList = new List<string>();
+                foreach (var d in mDeviceList)
+                {
+                    deviceList.Add(d.name);
+                }
+                SelectDialog selectDialog = new SelectDialog(deviceList, "Please select the desired device");
+                selectDialog.ShowDialog();
+                if ((bool)selectDialog.DialogResult)
+                {
+                    int selectedIdx = selectDialog.getSelectedIndex();
+                    if (selectedIdx>=1)
+                    {
+                        mDevice = mDeviceList[selectedIdx];
+                        UpdateDeviceList();
+                    }
+                }
+            }
+
+
+
 
             mAdbSendCMDThread = new Thread(() => {
                 ItemCMD adb_cmd = new ItemCMD();
@@ -173,7 +212,7 @@ namespace ADBWrapper
                             mScreenshotUpdatedTime = DateTime.Now;
                             ItemCMD adb_cmd_scr = new ItemCMD();
                             adb_cmd_scr.filename = mAdbPath;
-                            adb_cmd_scr.arguments = "exec-out screencap -p";
+                            adb_cmd_scr.arguments = GetDeviceCmdParam() + "exec-out screencap -p";
                             adb_cmd_scr.onCompleted = delegate (object o)
                             {
                                 if (o.GetType().Name == "MemoryStream")
@@ -207,7 +246,7 @@ namespace ADBWrapper
             {
                 mAdbInputProc = new System.Diagnostics.Process();
                 mAdbInputProc.StartInfo.FileName = mAdbPath;
-                mAdbInputProc.StartInfo.Arguments = "shell";
+                mAdbInputProc.StartInfo.Arguments = GetDeviceCmdParam() + "shell";
                 mAdbInputProc.StartInfo.UseShellExecute = false;
 
                 mAdbInputProc.StartInfo.RedirectStandardInput = true;
@@ -228,7 +267,7 @@ namespace ADBWrapper
                 });
                 mAdbInputProc.Start();
             }
-            Console.WriteLine(cmd);
+            //Console.WriteLine(cmd);
 
             mAdbInputProc.StandardInput.WriteLine(cmd);
             return true;
@@ -387,6 +426,27 @@ namespace ADBWrapper
             }
         }
 
+        private bool RunCMDwithMsgBox(string filename, string arguments, bool isMultiThread = true)
+        {
+            if (isMultiThread)
+            {
+                Thread thread = new Thread(new ThreadStart(() => {
+                    MemoryStream mem = new MemoryStream();
+                    RunCMDtoMEM(filename, arguments, ref mem);
+                    MessageBox.Show(Encoding.ASCII.GetString(mem.ToArray()));
+                }));
+                thread.Start();
+            }
+            else
+            {
+                MemoryStream mem = new MemoryStream();
+                if (!RunCMDtoMEM(filename, arguments, ref mem))
+                    return false;
+                MessageBox.Show(Encoding.ASCII.GetString(mem.ToArray()));
+            }
+
+            return true;
+        }
         //adb exec-out screenrecord --output-format=h264  - | mplayer -cache 512 -
         //adb exec-out screenrecord --size=360x640 --output-format=raw-frames - | mplayer -demuxer rawvideo -rawvideo w = 360:h=640:format=rgb24 -
         //private Thread mAdbScrRecThread = null;
@@ -432,7 +492,7 @@ namespace ADBWrapper
                 int surfaceOrientation = 0;
                 ItemCMD adb_cmd = new ItemCMD();
                 adb_cmd.filename = mAdbPath;
-                adb_cmd.arguments = "shell \"dumpsys input | grep 'Surface'\"";
+                adb_cmd.arguments = GetDeviceCmdParam() + "shell \"dumpsys input | grep 'Surface'\"";
                 adb_cmd.onCompleted = delegate (object o)
                 {
                     if (o.GetType().Name == "MemoryStream")
@@ -474,7 +534,7 @@ namespace ADBWrapper
                             }
                         }
                         Console.WriteLine("Surface: {0} {1} {2}", width, height, ori);
-                        if (ori != surfaceOrientation)
+                        if (ori != surfaceOrientation && !mDecoder.isRecMP4())
                         {
                             surfaceOrientation = ori;
                             StopAdbScrRec();
@@ -486,7 +546,7 @@ namespace ADBWrapper
                 {
                     System.Diagnostics.Process adb_proc = new System.Diagnostics.Process();
                     adb_proc.StartInfo.FileName = mAdbPath;
-                    adb_proc.StartInfo.Arguments = "exec-out screenrecord --output-format=h264 -";
+                    adb_proc.StartInfo.Arguments = GetDeviceCmdParam() + "exec-out screenrecord --output-format=h264 -";
                     adb_proc.StartInfo.UseShellExecute = false;
 
                     adb_proc.StartInfo.StandardOutputEncoding = System.Text.Encoding.GetEncoding("latin1");
@@ -595,7 +655,29 @@ namespace ADBWrapper
                                         mAdbScreenShot.Source = wbm;
                                         if ((num_updated % 30) == 0)
                                         {
-                                            mLabelUpdatedInterval.Content = String.Format("dec:{0:0.00}ms,cvt:{1:0.00}ms", mDecoder.getPerformance(0) * 1000, mDecoder.getPerformance(1) * 1000);
+                                            string content = "";
+                                            if (mDevice != null)
+                                                content = mDevice.name + " - ";
+                                            content += string.Format("dec:{0:0.00}ms,cvt:{1:0.00}ms", mDecoder.getPerformance(0) * 1000, mDecoder.getPerformance(1) * 1000);
+                                            if (mDecoder.isRecMP4())
+                                            {
+                                                double total_sec = mDecoder.getRecMP4Seconds();
+                                                int sec, min, hour;
+                                                
+                                                sec = (int)total_sec;
+                                                min = sec / 60;
+                                                sec = sec % 60;
+                                                if (min >= 60)
+                                                {
+                                                    hour = min / 60;
+                                                    min = min % 60;
+                                                    content += string.Format(",mp4:{0}:{1:00}:{2:00}", hour, min, sec);
+                                                }
+                                                else
+                                                    content += string.Format(",mp4:{0}:{1:00}", min, sec);
+
+                                            }
+                                            mLabelUpdatedInterval.Content = content;
                                             mLabelUpdatedIntervalBlur.Content = mLabelUpdatedInterval.Content;
                                         }
                                     });
@@ -690,13 +772,31 @@ namespace ADBWrapper
             return true;
         }
 
-        bool StopAdbScrRec()
+        bool StopAdbScrRec(bool isUpdateUI=true)
         {
+            if (isUpdateUI)
+            {
+                this.Dispatcher.Invoke(() =>
+                {
+                    BtnScrMenuItem_Click(mMenuItemScrRecStop, null);
+                });
+            }
             mAdbScrRecMutex.WaitOne();
-            if (mAdbScrRecProc != null)
-                mAdbScrRecProc.Kill();
+            try { 
+                if (mAdbScrRecProc != null)
+                    mAdbScrRecProc.Kill();
+            }
+            catch (System.InvalidOperationException) { };
             mAdbScrRecMutex.ReleaseMutex();
             return true;
+        }
+
+        void RefreshAdbScrRec()
+        {
+            if (mRefreshMode == RefreshMode.SCR_REC || mRefreshMode == RefreshMode.SCR_REC_Gray)
+                StopAdbScrRec();
+            else
+                ShowScreenshotFromMemory();
         }
 
         /*
@@ -861,14 +961,12 @@ namespace ADBWrapper
 
         bool SaveMemoryImage(ref MemoryStream mem_stream)
         {
-            mAdbScreenshotPath = AppDomain.CurrentDomain.BaseDirectory + "Screenshot";
+            mAdbScreenshotPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Screenshot");
             if (!Directory.Exists(mAdbScreenshotPath))
-            {
                 Directory.CreateDirectory(mAdbScreenshotPath);
-            }
 
             string screenshot_filename = "screenshot_" + DateTime.Now.ToString("yy_MM_dd_HH_mm_ss") + ".png";
-            screenshot_filename = mAdbScreenshotPath + "\\" + screenshot_filename;
+            screenshot_filename = System.IO.Path.Combine(mAdbScreenshotPath, screenshot_filename);
 
             bool res = false;
             using (FileStream file = new FileStream(screenshot_filename, FileMode.Create, System.IO.FileAccess.Write))
@@ -897,7 +995,7 @@ namespace ADBWrapper
 
             ItemCMD adb_cmd = new ItemCMD();
             adb_cmd.filename = mAdbPath;
-            adb_cmd.arguments = "exec-out screencap -p";
+            adb_cmd.arguments = GetDeviceCmdParam() + "exec-out screencap -p";
             adb_cmd.onCompleted = delegate (object o)
             {
                 if (o.GetType().Name == "MemoryStream")
@@ -973,9 +1071,23 @@ namespace ADBWrapper
 
         private void BtnScreenshot_Click(object sender, RoutedEventArgs e)
         {
-            mBtnScreenshot.IsEnabled = false;
-            //if (mRefreshMode != RefreshMode.AUTO)
-            ShowScreenshotFromMemory(true);
+            
+            if (mRefreshMode == RefreshMode.SCR_REC || mRefreshMode == RefreshMode.SCR_REC_Gray)
+            {
+                if (mDecoder.isRecMP4())
+                    BtnScrMenuItem_Click(mMenuItemScrRecStop, null);
+                else
+                    BtnScrMenuItem_Click(mMenuItemScrRecStart, null);
+            }
+            else
+            {
+                mBtnScreenshot.IsEnabled = false;
+                BtnScrMenuItem_Click(mMenuItemScrShot, null);
+                ShowScreenshotFromMemory(true);
+            }
+
+                //if (mRefreshMode != RefreshMode.AUTO)
+                
         }
 
         private void BtnRotLeft_Click(object sender, RoutedEventArgs e)
@@ -1039,6 +1151,10 @@ namespace ADBWrapper
                 mImgRefreshAuto.Visibility = Visibility.Collapsed;
                 mImgRefreshRec.Visibility = Visibility.Collapsed;
                 mImgRefreshMutually.Visibility = Visibility.Visible;
+                mMenuItemScrRecStart.Visibility = Visibility.Collapsed;
+                mMenuItemScrRecStop.Visibility = Visibility.Collapsed;
+
+                mBtnScreenshot.ToolTip = "Take a screenshot";
                 StopAdbScrRec();
             }
             else if (mRefreshMode == RefreshMode.AUTO)
@@ -1051,6 +1167,9 @@ namespace ADBWrapper
                 mImgRefreshAuto.Visibility = Visibility.Visible;
                 mImgRefreshRec.Visibility = Visibility.Collapsed;
                 mImgRefreshMutually.Visibility = Visibility.Collapsed;
+                mMenuItemScrRecStart.Visibility = Visibility.Collapsed;
+                mMenuItemScrRecStop.Visibility = Visibility.Collapsed;
+                mBtnScreenshot.ToolTip = "Take a screenshot";
                 mAdbSendCMDEvent.Set();
                 StopAdbScrRec();
             }
@@ -1059,6 +1178,9 @@ namespace ADBWrapper
                 mImgRefreshAuto.Visibility = Visibility.Collapsed;
                 mImgRefreshRec.Visibility = Visibility.Collapsed;
                 mImgRefreshMutually.Visibility = Visibility.Visible;
+                mMenuItemScrRecStart.Visibility = Visibility.Collapsed;
+                mMenuItemScrRecStop.Visibility = Visibility.Collapsed;
+                mBtnScreenshot.ToolTip = "Take a screenshot";
                 StopAdbScrRec();
             }
             else if (mRefreshMode == RefreshMode.SCR_REC || mRefreshMode == RefreshMode.SCR_REC_Gray)
@@ -1070,6 +1192,9 @@ namespace ADBWrapper
                 mImgRefreshAuto.Visibility = Visibility.Collapsed;
                 mImgRefreshRec.Visibility = Visibility.Visible;
                 mImgRefreshMutually.Visibility = Visibility.Collapsed;
+                mMenuItemScrRecStart.Visibility = Visibility.Visible;
+                mMenuItemScrRecStop.Visibility = Visibility.Collapsed;
+                mBtnScreenshot.ToolTip = "Record the video stream";
                 StartAdbScrRec();
             }
         }
@@ -1102,6 +1227,8 @@ namespace ADBWrapper
 
         private void BtnAutoRefreshMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            mMenuItemQSRecScr.IsChecked = false;
+            mMenuItemQSRecScrGray.IsChecked = false;
             if (sender == mMenuItemQSAuto)
                 mRefreshMode = RefreshMode.AUTO;
             else if (sender == mMenuItemQSMutual)
@@ -1110,6 +1237,8 @@ namespace ADBWrapper
                 mRefreshMode = RefreshMode.DISABLE;
             else if (sender == mMenuItemQSRecScr || sender == mMenuItemQSRecScrGray)
             {
+                MenuItem menuItem = sender as MenuItem;
+                if (menuItem != null && menuItem.IsCheckable) menuItem.IsChecked = true;
                 if (mRefreshMode == RefreshMode.SCR_REC_Gray || mRefreshMode == RefreshMode.SCR_REC)
                 {
                     mRefreshMode = sender == mMenuItemQSRecScr ? RefreshMode.SCR_REC : RefreshMode.SCR_REC_Gray;
@@ -1216,7 +1345,10 @@ namespace ADBWrapper
             if (mIsRightPressed)
             {
                 if (mRefreshMode == RefreshMode.SCR_REC || mRefreshMode == RefreshMode.SCR_REC_Gray)
-                    StopAdbScrRec();
+                {
+                    if (!mDecoder.isRecMP4())
+                        StopAdbScrRec();
+                }
                 else
                     ShowScreenshotFromMemory();
             }
@@ -1320,8 +1452,13 @@ namespace ADBWrapper
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             mAdbScrRecMutex.WaitOne();
-            if (mAdbScrRecProc != null && !mAdbScrRecProc.HasExited)
-                mAdbScrRecProc.Kill();
+            try
+            {
+                if (mAdbScrRecProc != null && !mAdbScrRecProc.HasExited)
+                    mAdbScrRecProc.Kill();
+            }
+            catch (System.InvalidOperationException) { };
+
             mAdbScrRecMutex.ReleaseMutex();
 
             if (mAdbScrRecThread!=null)
@@ -1336,8 +1473,8 @@ namespace ADBWrapper
             mAdbSendCMDQueue.Clear();
             mAdbSendCMDQueueMutex.ReleaseMutex();
 
-            mAdbCMDMutex.WaitOne();
-            mAdbCMDMutex.ReleaseMutex();
+            //mAdbCMDMutex.WaitOne();
+            //mAdbCMDMutex.ReleaseMutex();
 
             mAdbSendCMDEvent.Set();
 
@@ -1350,15 +1487,52 @@ namespace ADBWrapper
 
         private void BtnScrMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            String path = AppDomain.CurrentDomain.BaseDirectory;
-            mAdbScreenshotPath = AppDomain.CurrentDomain.BaseDirectory + "Screenshot";
-            System.Diagnostics.Process.Start("explorer.exe", Directory.Exists(path + "Screenshot")?path + "Screenshot":path);
+            mAdbScreenshotPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Screenshot");
+            if (!Directory.Exists(mAdbScreenshotPath))
+                Directory.CreateDirectory(mAdbScreenshotPath);
+
+            if (sender == mMenuItemScrOpenPath)
+            {
+                System.Diagnostics.Process.Start("explorer.exe", mAdbScreenshotPath);
+            }
+            else if (sender == mMenuItemScrShot)
+            {
+                mBtnScreenshot.IsEnabled = false;
+                //if (mRefreshMode != RefreshMode.AUTO)
+                ShowScreenshotFromMemory(true);
+            }
+            else if (sender == mMenuItemScrRecStart)
+            {
+                bool isStartRec = false;
+                string screenshot_filename = "screenrecord_" + DateTime.Now.ToString("yy_MM_dd_HH_mm_ss") + ".mp4";
+                screenshot_filename = System.IO.Path.Combine(mAdbScreenshotPath, screenshot_filename);
+
+                Console.WriteLine("WPF:"+screenshot_filename);
+                isStartRec = mDecoder.startRecMP4(screenshot_filename);
+
+                if (isStartRec)
+                {
+                    StopAdbScrRec(false);
+                    mMenuItemScrRecStart.Visibility = Visibility.Collapsed;
+                    mMenuItemScrRecStop.Visibility = Visibility.Visible;
+                    mImgScrRecStop.Visibility = Visibility.Visible;
+                    mImgScrShot.Visibility = Visibility.Collapsed;
+                }
+            }
+            else if (sender == mMenuItemScrRecStop)
+            {
+                mDecoder.stopRecMP4();
+                mMenuItemScrRecStop.Visibility = Visibility.Collapsed;
+                mMenuItemScrRecStart.Visibility = Visibility.Visible;
+                mImgScrShot.Visibility = Visibility.Visible;
+                mImgScrRecStop.Visibility = Visibility.Collapsed;
+            }
         }
 
         private void BtnPowerMenuItem_Click(object sender, RoutedEventArgs e)
         {
             if (sender == mMenuItemReboot)
-                AdbCMD("reboot");
+                AdbCMD(GetDeviceCmdParam() + "reboot");
             else if (sender == mMenuItemKillServer)
                 AdbCMD("kill-server");
             else if (sender == mMenuItemSU)
@@ -1435,7 +1609,7 @@ namespace ADBWrapper
         {
             ItemCMD adb_cmd_getinput = new ItemCMD();
             adb_cmd_getinput.filename = mAdbPath;
-            adb_cmd_getinput.arguments = "shell getevent -p";
+            adb_cmd_getinput.arguments = GetDeviceCmdParam() + "shell getevent -p";
             adb_cmd_getinput.onCompleted = delegate (object o)
             {
                 if (o.GetType().Name == "MemoryStream")
@@ -1523,12 +1697,237 @@ namespace ADBWrapper
             mAdbSendCMDEvent.Set();
         }
 
+        private List<DeviceInfo> GetDeviceList()
+        {
+            MemoryStream mem_stream = new MemoryStream();
+            if (RunCMDtoMEM(mAdbPath, "devices", ref mem_stream) && mem_stream.Length != 0)
+            {
+                string[] cmd_lines = Encoding.ASCII.GetString(mem_stream.ToArray()).Split(
+                    new[] { "\r\n", "\r", "\n" },
+                    StringSplitOptions.None
+                );
+
+                Regex regexDevice = new Regex("^(\\S+)\\s+device");
+                Regex regexIP = new Regex("inet\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)");
+                MatchCollection matches;
+                var res_list = new List<DeviceInfo>();
+                for (int i = 0; i < cmd_lines.Length; i++)
+                {
+                    matches = regexDevice.Matches(cmd_lines[i]);
+
+                    if (matches.Count != 0 && matches[0].Groups.Count >= 2)
+                    {
+                        GroupCollection groups = matches[0].Groups;
+                        DeviceInfo dev = new DeviceInfo();
+                        dev.name = groups[1].Value;
+                        dev.ip = dev.name;
+                        //adb -s CB5A1LMBP9 shell ip -f inet addr show wlan0
+
+                        System.Net.IPAddress ip;
+                        if (!System.Net.IPAddress.TryParse(dev.ip, out ip))
+                        {
+                            dev.ip = "";
+                            mem_stream = new MemoryStream();
+                            if (RunCMDtoMEM(mAdbPath, "-s " + dev.name + " shell ip -f inet addr show wlan0", ref mem_stream) && mem_stream.Length != 0)
+                            {
+                                string[] ip_lines = Encoding.ASCII.GetString(mem_stream.ToArray()).Split(
+                                    new[] { "\r\n", "\r", "\n" },
+                                    StringSplitOptions.None
+                                );
+
+                                for (int j = 0; j < ip_lines.Length; j++)
+                                {
+                                    MatchCollection matchesIP = regexIP.Matches(ip_lines[j]);
+                                    if (matchesIP.Count != 0 && matchesIP[0].Groups.Count >= 2)
+                                    {
+                                        dev.ip = matchesIP[0].Groups[1].Value + ":" + TCP_PORT.ToString();
+                                    }
+                                }
+                            }
+                        }
+                        res_list.Add(dev);
+                    }
+                    Console.WriteLine("{0}={2} : {1}", i, cmd_lines[i], matches.Count);
+                }
+
+                return res_list.Count > 0 ? res_list : null;
+            }
+            return null;
+        }
+
+        private string GetDeviceCmdParam()
+        {
+            if (mDevice != null) return " -s " + mDevice.name + " ";
+            return "";
+        }
+        private void UpdateDeviceList()
+        {
+            mDeviceList = GetDeviceList();
+            bool isDeviceFound = false;
+            if (mDeviceList != null)
+            {
+                foreach (var d in mDeviceList)
+                {
+                    if (mDevice != null && mDevice.name == d.name)
+                    {
+                        isDeviceFound = true;
+                        break;
+                    }
+                }
+            }
+            if (!isDeviceFound) mDevice = null;
+            if (mDevice == null && mDeviceList != null && mDeviceList.Count > 0)
+            {
+                mDevice = mDeviceList[0];
+                RefreshAdbScrRec();
+            }
+
+            this.Dispatcher.Invoke(() =>
+            {
+                mMenuItemMenuDevice.Items.Clear();
+                if (mDeviceList != null)
+                {
+                    foreach (var d in mDeviceList)
+                    {
+                        var item = new MenuItem();
+                        item.Header = d.name;
+                        mMenuItemMenuDevice.Items.Add(item);
+
+                        MenuItem itemSub;
+                        itemSub = new MenuItem() { Header = mDevice != null && mDevice.name == d.name ? "Reselect " + d.name : "Select " + d.name };
+                        itemSub.Click += (s, x) =>
+                        {
+                            mDevice = d;
+                            RefreshAdbScrRec();
+                            UpdateDeviceList();
+                        };
+                        itemSub.IsCheckable = true;
+                        itemSub.IsChecked = (mDevice.name == d.name);
+                        Console.WriteLine(mDevice.name + " => " + d.name);
+                        item.Items.Add(itemSub);
+                        item.Items.Add(new Separator());
+
+                        itemSub = new MenuItem() { Header = "Enable tcpip" };
+                        itemSub.Click += (s, x) =>
+                        {
+                            string param = "-s " + d.name + " tcpip " + TCP_PORT.ToString();
+                            Console.WriteLine(param);
+                            RunCMDwithMsgBox(mAdbPath, param);
+                        };
+                        item.Items.Add(itemSub);
+
+                        if (d.name == d.ip)
+                        {
+                            itemSub = new MenuItem() { Header = "Disconnect " + d.ip };
+                            itemSub.Click += (s, x) =>
+                            {
+                                string param = "disconnect " + d.ip;
+                                Console.WriteLine(param);
+                                RunCMDwithMsgBox(mAdbPath, param, false);
+                                UpdateDeviceList();
+                            };
+                            item.Items.Add(itemSub);
+                        }
+                        else
+                        {
+                            itemSub = new MenuItem() { Header = "Connect " + d.ip };
+                            itemSub.Click += (s, x) =>
+                            {
+                                string param = "connect " + d.ip;
+                                Console.WriteLine(param);
+                                RunCMDwithMsgBox(mAdbPath, param, false);
+                                UpdateDeviceList();
+                            };
+                            item.Items.Add(itemSub);
+                        }
+
+
+                        itemSub = new MenuItem() { Header = "Connect USB" };
+                        itemSub.Click += (s, x) =>
+                        {
+                            string param = "-s " + d.name + " usb";
+                            Console.WriteLine(param);
+                            RunCMDwithMsgBox(mAdbPath, param);
+                        };
+                        item.Items.Add(itemSub);
+
+                        //itemSub = new MenuItem() { Header = "Remove "+d.name };
+                        //itemSub.Click += (s, x) => {
+                        //    int idx = -1;
+                        //    foreach (MenuItem i in mMenuItemMenuDevice.Items)
+                        //    {
+                        //        if (i.Header.ToString() == d.name)
+                        //        {
+                        //            idx = mMenuItemMenuDevice.Items.IndexOf(i);
+                        //            break;
+                        //        }
+                        //    }
+                        //    if (idx >= 0) mMenuItemMenuDevice.Items.RemoveAt(idx);
+                        //};
+                        //item.Items.Add(itemSub);
+
+                        item.Items.Add(new Separator());
+                        item.Items.Add(new MenuItem() { Header = d.ip });
+
+                    }
+
+                    if (mDeviceList.Count > 0)
+                        mMenuItemMenuDevice.Items.Add(new Separator());
+                }
+ 
+                var itemFunc = new MenuItem() { Header = "Refresh list"};
+                itemFunc.Click += (s, x) => {
+                    UpdateDeviceList();
+                };
+                mMenuItemMenuDevice.Items.Add(itemFunc);
+
+                itemFunc = new MenuItem() { Header = "Connect to IP..." };
+                itemFunc.Click += (s, x) => {
+                    uint[] ip = new uint[5] { 192, 168, 99, 1, TCP_PORT };
+                    if (mDevice != null)
+                    {
+                        Regex regexIP = new Regex("(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+):(\\d+)");
+                        var match = regexIP.Match(mDevice.ip);
+                        if (match.Groups.Count == 6)
+                        {
+                            for (int i = 0; i < 5; i++)
+                                ip[i] = System.Convert.ToUInt32(match.Groups[i + 1].ToString());
+                        }
+                    }
+                    SelectDialog selectDialog = new SelectDialog(ip[0], ip[1], ip[2], ip[3], ip[4], "Please input ip");
+                    selectDialog.ShowDialog();
+                    if ((bool)selectDialog.DialogResult)
+                    {
+                        string ip_str = selectDialog.getIP();
+                        Console.WriteLine("IP:" + ip_str);
+                        if (ip_str == null || ip_str.Length == 0)
+                        {
+                            MessageBox.Show("Invaild IP", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                        else
+                        {
+                            string param = "connect " + ip_str;
+                            Console.WriteLine(param);
+                            RunCMDwithMsgBox(mAdbPath, param, false);
+                            UpdateDeviceList();
+                        }
+                    }
+                };
+                mMenuItemMenuDevice.Items.Add(itemFunc);
+            });
+        }
         private void MenuItemInputSelector_MouseEnter(object sender, MouseEventArgs e)
         {
             if (mMenuItemInputSelector.Items.Count == 0)
             {
                 RefreshInputSelector();
             }
+        }
+
+        private void BtnMenu_Click(object sender, RoutedEventArgs e)
+        {
+            //adb shell ip -f inet addr show
+            mBtnMenu.ContextMenu.IsOpen = true;
         }
     }
 }

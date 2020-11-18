@@ -22,6 +22,16 @@
         </StackPanel>
         <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove" MouseWheel="AdbScreenShot_MouseWheel"/>
         <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="2" HorizontalAlignment="Right">
+            <Button x:Name="mBtnMenu" Visibility="Collapsed" Width="32" Height="32" Background="{x:Null}" Click="BtnMenu_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Menu">
+                <Image Source="resource/icon/round_menu_white_36dp.png"/>
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        
+                        <MenuItem x:Name="mMenuItemMenuADBonWIFI" Header="Wifi"/>
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+            <Image Width="32" Source="resource/icon/sep.png" Opacity="0.3" Visibility="Collapsed" />
             <Button x:Name="mBtnPower" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnPower_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send power keyevent">
                 <Grid>
                     <Image Source="resource/icon/btn_more.png"/>
@@ -30,9 +40,11 @@
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
-                        <MenuItem x:Name="mMenuItemReboot" Header="Reboot" Click="BtnPowerMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemKillServer" Header="Kill-server" Click="BtnPowerMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemSU" Header="su" Click="BtnPowerMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemMenuDevice" Header="Devices"/>
+                        <Separator Visibility="Collapsed"/>
+                        <MenuItem x:Name="mMenuItemReboot" Header="Reboot" Click="BtnPowerMenuItem_Click" Visibility="Collapsed"/>
+                        <MenuItem x:Name="mMenuItemKillServer" Header="Kill-server" Click="BtnPowerMenuItem_Click" Visibility="Collapsed"/>
+                        <MenuItem x:Name="mMenuItemSU" Header="su" Click="BtnPowerMenuItem_Click" Visibility="Collapsed"/>
                         <Separator/>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="/dev/input/"/>
@@ -51,27 +63,25 @@
             <Button x:Name="mBtnScreenshot" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnScreenshot_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Take a screenshot">
                 <Grid>
                     <Image Source="resource/icon/btn_more.png"/>
-                    <Image Source="resource/icon/round_camera_white_36dp.png"/>
+                    <Image Source="resource/icon/round_camera_white_36dp.png" x:Name="mImgScrShot"/>
+                    <Image Source="resource/icon/round_video_stop_circle_white_36dp.png" x:Name="mImgScrRecStop" Visibility="Hidden"/>
                     <!--Label Content="Scr" FontSize="10" Padding="0" Foreground="White" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Open scr path" Click="BtnScrMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemScrShot" Header="Take a screenshot" Click="BtnScrMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemScrRecStart" Header="Start rec stream" Click="BtnScrMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemScrRecStop" Header="Stop rec stream" Click="BtnScrMenuItem_Click" Visibility="Collapsed"/>
+                        <Separator/>
+                        <MenuItem x:Name="mMenuItemScrOpenPath" Header="Open scr path" Click="BtnScrMenuItem_Click"/>
+
                     </ContextMenu>
                 </Button.ContextMenu>
-            </Button>
-            <Button x:Name="mBtnRotLeft" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotLeft_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Rotate 90deg counter-clockwise">
-                <!--Label Content="RotL" FontSize="10" Padding="0" Foreground="White"/-->
-                <Image Source="resource/icon/round_rotate_left_white_36dp.png"/>
-            </Button>
-            <Button x:Name="mBtnRotRight" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotRight_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Rotate 90deg clockwise">
-                <!--Label Content="RotR" FontSize="10" Padding="0" Foreground="White"/-->
-                <Image Source="resource/icon/round_rotate_right_white_36dp.png"/>
             </Button>
             <Button x:Name="mBtnSettings" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnSettings_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Launch settings app">
                 <Grid>
                     <Image Source="resource/icon/btn_more.png"/>
-                    <Image Source="resource/icon/round_settings_white_36dp.png"/>
+                    <Image Source="resource/icon/round_apps_white_36dp.png"/>
                     <!--Label Content="Sett" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
@@ -87,22 +97,31 @@
                     <Image Source="resource/icon/btn_more.png"/>
                     <Image Source="resource/icon/round_refresh_white_36dp.png" x:Name="mImgRefreshMutually"/>
                     <Image Source="resource/icon/round_refresh_white_auto_36dp.png" x:Name="mImgRefreshAuto" Visibility="Hidden"/>
-                    <Image Source="resource/icon/round_videocam_white_36dp.png" x:Name="mImgRefreshRec" Visibility="Hidden"/>
+                    <Image Source="resource/icon/round_cast_white_36dp.png" x:Name="mImgRefreshRec" Visibility="Hidden"/>
                     <!--Label x:Name="mImgRefreshMutually" Content="Mutu" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                     <!--Label x:Name="mImgRefreshAuto" Content="Auto" FontSize="10" Padding="0" Foreground="White" Visibility="Hidden" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                 </Grid>
                 <Button.ContextMenu>
                     <ContextMenu>
-                        <MenuItem x:Name="mMenuItemQSRecScr" Header="RecScr" Click="BtnAutoRefreshMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemQSRecScrGray" Header="RecScr(Gray)" Click="BtnAutoRefreshMenuItem_Click"/>
+                        <MenuItem x:Name="mMenuItemQSRecScr" Header="RecScr" Click="BtnAutoRefreshMenuItem_Click" IsCheckable="True" IsChecked="False"/>
+                        <MenuItem x:Name="mMenuItemQSRecScrGray" Header="RecScr(Gray)" Click="BtnAutoRefreshMenuItem_Click" IsCheckable="True" IsChecked="False"/>
                         <CheckBox x:Name="mCheckBoxEnableOriDetect" IsChecked="True" Content="AutoOrientation"/>
-                        <Separator/>
-                        <MenuItem x:Name="mMenuItemQSAuto" Header="Auto" Click="BtnAutoRefreshMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemQSMutual" Header="Mutual" Click="BtnAutoRefreshMenuItem_Click"/>
-                        <MenuItem x:Name="mMenuItemQSDisable" Header="Disable" Click="BtnAutoRefreshMenuItem_Click"/>
+                        <Separator Visibility="Collapsed"/>
+                        <MenuItem Visibility="Collapsed" x:Name="mMenuItemQSAuto" Header="Auto" Click="BtnAutoRefreshMenuItem_Click"/>
+                        <MenuItem Visibility="Collapsed" x:Name="mMenuItemQSMutual" Header="Mutual" Click="BtnAutoRefreshMenuItem_Click"/>
+                        <MenuItem Visibility="Collapsed" x:Name="mMenuItemQSDisable" Header="Disable" Click="BtnAutoRefreshMenuItem_Click"/>
                         
                     </ContextMenu>
                 </Button.ContextMenu>
+            </Button>
+            <Image Width="32" Source="resource/icon/sep.png" Opacity="0.3"/>
+            <Button x:Name="mBtnRotLeft" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotLeft_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Rotate 90deg counter-clockwise">
+                <!--Label Content="RotL" FontSize="10" Padding="0" Foreground="White"/-->
+                <Image Source="resource/icon/round_rotate_left_white_36dp.png"/>
+            </Button>
+            <Button x:Name="mBtnRotRight" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnRotRight_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Rotate 90deg clockwise">
+                <!--Label Content="RotR" FontSize="10" Padding="0" Foreground="White"/-->
+                <Image Source="resource/icon/round_rotate_right_white_36dp.png"/>
             </Button>
             <Image Width="32" Source="resource/icon/sep.png" Opacity="0.3"/>
             <Button x:Name="mBtnBack" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnNav_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Send back keyevent">
