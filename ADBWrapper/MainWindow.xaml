@@ -20,7 +20,7 @@
                 <Label Content="Debug" FontSize="10" Padding="0" Foreground="White"/>
             </Button>
         </StackPanel>
-        <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove" MouseWheel="AdbScreenShot_MouseWheel"/>
+        <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove" MouseWheel="AdbScreenShot_MouseWheel" MouseEnter="AdbScreenShot_MouseEnter" MouseLeave="AdbScreenShot_MouseLeave"/>
         <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="2" HorizontalAlignment="Right">
             <Button x:Name="mBtnMenu" Visibility="Collapsed" Width="32" Height="32" Background="{x:Null}" Click="BtnMenu_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Menu">
                 <Image Source="resource/icon/round_menu_white_36dp.png"/>
@@ -52,6 +52,7 @@
                         </StackPanel>
                         <MenuItem x:Name="mMenuItemInputSelector" Header="Input selector" MouseEnter="MenuItemInputSelector_MouseEnter" />
                         <Separator/>
+                        <CheckBox x:Name="mCheckBoxAlwayOnTop" Content="Enable Always on Top" IsChecked="False" Click="CheckBoxAlwayOnTop_Click"/>
                         <CheckBox x:Name="mCheckBoxShowMsgIfError" Content="Show msg if error" IsChecked="False"/>
                         <MenuItem x:Name="mMenuItemHideMsg" Header="Show/Hide msg" Click="BtnPowerMenuItem_Click"/>
                         <MenuItem x:Name="mMenuItemClrMsg" Header="Clear msg" Click="BtnPowerMenuItem_Click"/>
@@ -78,9 +79,10 @@
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
+            <Image Width="32" Source="resource/icon/sep.png" Opacity="0.3"/>
             <Button x:Name="mBtnSettings" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnSettings_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Launch settings app">
                 <Grid>
-                    <Image Source="resource/icon/btn_more.png"/>
+                    <!--Image Source="resource/icon/btn_more.png"/-->
                     <Image Source="resource/icon/round_apps_white_36dp.png"/>
                     <!--Label Content="Sett" FontSize="10" Padding="0" Foreground="White" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/-->
                 </Grid>
@@ -93,8 +95,8 @@
                 </Button.ContextMenu>
             </Button>
             <Button x:Name="mBtnAutoRefresh" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnAutoRefresh_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Preview update mode">
-                <Grid>
-                    <Image Source="resource/icon/btn_more.png"/>
+                <Grid x:Name="mGridAutoRefreshImages">
+                    <!--Image Source="resource/icon/btn_more.png"/-->
                     <Image Source="resource/icon/round_refresh_white_36dp.png" x:Name="mImgRefreshMutually"/>
                     <Image Source="resource/icon/round_refresh_white_auto_36dp.png" x:Name="mImgRefreshAuto" Visibility="Hidden"/>
                     <Image Source="resource/icon/round_cast_white_36dp.png" x:Name="mImgRefreshRec" Visibility="Hidden"/>
@@ -106,6 +108,9 @@
                         <MenuItem x:Name="mMenuItemQSRecScr" Header="RecScr" Click="BtnAutoRefreshMenuItem_Click" IsCheckable="True" IsChecked="False"/>
                         <MenuItem x:Name="mMenuItemQSRecScrGray" Header="RecScr(Gray)" Click="BtnAutoRefreshMenuItem_Click" IsCheckable="True" IsChecked="False"/>
                         <CheckBox x:Name="mCheckBoxEnableOriDetect" IsChecked="True" Content="AutoOrientation"/>
+                        <Separator/>
+                        <MenuItem x:Name="mMenuItemQualityBitRate" Header="Bit rate (bps)"/>
+                        <MenuItem x:Name="mMenuItemQualityResolution" Header="Resolution"/>
                         <Separator Visibility="Collapsed"/>
                         <MenuItem Visibility="Collapsed" x:Name="mMenuItemQSAuto" Header="Auto" Click="BtnAutoRefreshMenuItem_Click"/>
                         <MenuItem Visibility="Collapsed" x:Name="mMenuItemQSMutual" Header="Mutual" Click="BtnAutoRefreshMenuItem_Click"/>

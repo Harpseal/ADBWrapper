@@ -54,6 +54,7 @@ namespace ADBWrapper
 
         System.Diagnostics.Process mAdbInputProc = null;
 
+        private Mutex mAdbScrStreamMutex= new Mutex();
         enum RefreshMode
         {
             AUTO = 0,
@@ -95,6 +96,11 @@ namespace ADBWrapper
         private DateTime mScreenshotUpdatedTime = DateTime.Now;
 
         private FFMpegWrapperCLI mDecoder = new FFMpegWrapperCLI();
+
+        private List<MenuItem> mListMenuItemBitRate = new List<MenuItem>();
+        private List<MenuItem> mListMenuItemResolution = new List<MenuItem>();
+        private string mQualityBitRate = "";
+        private string mQualityResolution = "";
 
         public MainWindow()
         {
@@ -162,8 +168,7 @@ namespace ADBWrapper
                 }
             }
 
-
-
+            CreateMenuItem();
 
             mAdbSendCMDThread = new Thread(() => {
                 ItemCMD adb_cmd = new ItemCMD();
@@ -403,7 +408,7 @@ namespace ADBWrapper
                     mem_stream.Write(binbuffer, 0, nRead);
                 } while (nRead != 0);
 
-                adb_proc.WaitForExit();
+                adb_proc.WaitForExit(5000);
 
                 mAdbCMDMutex.ReleaseMutex();
                 return adb_proc.ExitCode == 0;
@@ -474,6 +479,7 @@ namespace ADBWrapper
             return wbm;
         }
 
+        private DateTime mTimeOrientationUpdated = DateTime.Now;
         bool StartAdbScrRec()
         {
             int proc_buf_len = 4096*2;
@@ -485,8 +491,6 @@ namespace ADBWrapper
             }
             mAdbScrRecThread = new Thread(() => {
                 string errorMsgPre = "";
-
-                DateTime timeOriPre = DateTime.Now;
 
                 //Prepare CheckOrientation cmd
                 int surfaceOrientation = 0;
@@ -533,7 +537,7 @@ namespace ADBWrapper
                                 height = Int32.Parse(groups[1].Value);
                             }
                         }
-                        Console.WriteLine("Surface: {0} {1} {2}", width, height, ori);
+                        Console.WriteLine("SurfaceOrientation: {0} {1} {2}", width, height, ori);
                         if (ori != surfaceOrientation && !mDecoder.isRecMP4())
                         {
                             surfaceOrientation = ori;
@@ -544,10 +548,17 @@ namespace ADBWrapper
 
                 do
                 {
+                    string streamQualityParam = "";
+                    if (mQualityBitRate.Length > 0)
+                        streamQualityParam += "--bit-rate " + mQualityBitRate + " ";
+                    if (mQualityResolution.Length > 0)
+                        streamQualityParam += "--size " + mQualityResolution + " ";
                     System.Diagnostics.Process adb_proc = new System.Diagnostics.Process();
                     adb_proc.StartInfo.FileName = mAdbPath;
-                    adb_proc.StartInfo.Arguments = GetDeviceCmdParam() + "exec-out screenrecord --output-format=h264 -";
+                    adb_proc.StartInfo.Arguments = GetDeviceCmdParam() + "exec-out screenrecord " + streamQualityParam + "--output-format=h264 -";
                     adb_proc.StartInfo.UseShellExecute = false;
+
+                    Console.WriteLine(adb_proc.StartInfo.Arguments);
 
                     adb_proc.StartInfo.StandardOutputEncoding = System.Text.Encoding.GetEncoding("latin1");
 
@@ -592,11 +603,13 @@ namespace ADBWrapper
                         mAdbScreenShot.Opacity = 1;
                         mLabelUpdatedInterval.Content = "Waiting for stream to start";
                         mLabelUpdatedIntervalBlur.Content = mLabelUpdatedInterval.Content;
+                        mLabelUpdatedInterval.Opacity = 1;
+                        mLabelUpdatedIntervalBlur.Opacity = 1;
                     });
 
                     int width = 0, height = 0, channels = mRefreshMode == RefreshMode.SCR_REC_Gray ? 1 : 0;
-                    int num_updated = 0;
-      
+                    DateTime time_updated = DateTime.Now;
+
                     try
                     {
                         adb_proc.Start();
@@ -653,15 +666,18 @@ namespace ADBWrapper
                                         }
                                         //mAdbScreenShot.Source = bmpsrc;
                                         mAdbScreenShot.Source = wbm;
-                                        if ((num_updated % 30) == 0)
+                                        TimeSpan diff = DateTime.Now - time_updated;
+                                        if (diff.TotalMilliseconds > 500)
                                         {
+                                            time_updated = DateTime.Now;
                                             string content = "";
                                             if (mDevice != null)
                                                 content = mDevice.name + " - ";
-                                            content += string.Format("dec:{0:0.00}ms,cvt:{1:0.00}ms", mDecoder.getPerformance(0) * 1000, mDecoder.getPerformance(1) * 1000);
+                                            
                                             if (mDecoder.isRecMP4())
                                             {
-                                                double total_sec = mDecoder.getRecMP4Seconds();
+                                                double total_sec = mDecoder.getPerformance(2);
+                                                double total_size_kb = mDecoder.getPerformance(3);
                                                 int sec, min, hour;
                                                 
                                                 sec = (int)total_sec;
@@ -671,23 +687,30 @@ namespace ADBWrapper
                                                 {
                                                     hour = min / 60;
                                                     min = min % 60;
-                                                    content += string.Format(",mp4:{0}:{1:00}:{2:00}", hour, min, sec);
+                                                    content += string.Format("REC:mp4[{0}:{1:00}:{2:00}", hour, min, sec);
                                                 }
                                                 else
-                                                    content += string.Format(",mp4:{0}:{1:00}", min, sec);
-
+                                                    content += string.Format("REC:mp4[{0}:{1:00}", min, sec);
+                                                
+                                                if (total_size_kb < 1024)
+                                                    content += string.Format(",{0}KB]", (int)total_size_kb);
+                                                else
+                                                    content += string.Format(",{0:0.00}MB]", total_size_kb/1024);
                                             }
+                                            else
+                                                content += string.Format("dec:{0:0.00}ms,cvt:{1:0.00}ms", mDecoder.getPerformance(0) * 1000, mDecoder.getPerformance(1) * 1000);
+                                            content += string.Format(",{0:0.00}KB/s,{1:0.00}fps", mDecoder.getPerformance(4), mDecoder.getPerformance(5));
                                             mLabelUpdatedInterval.Content = content;
                                             mLabelUpdatedIntervalBlur.Content = mLabelUpdatedInterval.Content;
                                         }
                                     });
                                 }
                                 catch (System.Threading.Tasks.TaskCanceledException) { }
-                                ++num_updated;
 
-                                if (isCheckOrientation)
+                                if (isCheckOrientation && !mDecoder.isRecMP4())
                                 {
-                                    TimeSpan diff = DateTime.Now - timeOriPre;//
+                                    TimeSpan diff = DateTime.Now - mTimeOrientationUpdated;//
+
                                     if (diff.TotalSeconds > 3)
                                     {
                                         mAdbSendCMDQueueMutex.WaitOne();
@@ -696,7 +719,7 @@ namespace ADBWrapper
 
                                         mAdbSendCMDEvent.Set();
 
-                                        timeOriPre = DateTime.Now;
+                                        mTimeOrientationUpdated = DateTime.Now;
                                     }
                                 }
                             }
@@ -712,7 +735,7 @@ namespace ADBWrapper
                                     System.Runtime.InteropServices.Marshal.FreeHGlobal(unmanagedImgData);
                                 unmanagedImgData = System.Runtime.InteropServices.Marshal.AllocHGlobal(width * height * channels);
                                 wbm = null;
-                                Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} {5} NEW!", nRead, ret_status, width, height, channels, num_updated);
+                                Console.WriteLine("nread:{0} status:{1} {2} x {3} x {4} NEW!", nRead, ret_status, width, height, channels);
 
                             }
                             //else if ((num_updated % 40) == 0)
@@ -720,7 +743,10 @@ namespace ADBWrapper
                             //
                         } while (nRead != 0 || !adb_proc.HasExited);
                         Console.WriteLine("RecScr stoped.....");
-                        
+                        mAdbScrStreamMutex.WaitOne();
+                        mAdbScrStreamMutex.ReleaseMutex();
+
+
                     }
                     catch (System.ComponentModel.Win32Exception e)
                     {
@@ -784,11 +810,177 @@ namespace ADBWrapper
             mAdbScrRecMutex.WaitOne();
             try { 
                 if (mAdbScrRecProc != null)
+                {
                     mAdbScrRecProc.Kill();
+                    Console.WriteLine("mAdbScrRecProc " + mAdbScrRecProc.HasExited);
+                }
+
             }
             catch (System.InvalidOperationException) { };
             mAdbScrRecMutex.ReleaseMutex();
             return true;
+        }
+
+        void CreateMenuItem()
+        {
+            string[] bitrate = { "16M", "8M", "4M", "2M", "1M", "512000", "256000" };
+            string[] resolution_portrait = { "2160x3840", "1536x2048", "1080x1920", "900x1600", "720x1280", "576x1024", "450x800", "360x640" };
+            string[] resolution_landscape = { "3840x2160", "2048x1536", "1920x1080", "1600x900", "1280x720", "1024x576", "800x450", "640x360" };
+
+            {
+                MenuItem t = new MenuItem();
+                t.Header = "Default";
+                t.IsCheckable = true;
+                t.IsChecked = true;
+                t.Click += (s, x) => {
+                    if (mListMenuItemBitRate.Count > 0)
+                    {
+                        mQualityBitRate = "";
+                        mListMenuItemBitRate[0].IsChecked = true;
+                        for (int i = 1; i < mListMenuItemBitRate.Count; i++)
+                            mListMenuItemBitRate[i].IsChecked = false;
+                        StopAdbScrRec(true);
+                    }
+                };
+                mListMenuItemBitRate.Add(t);
+                mMenuItemQualityBitRate.Items.Add(t);
+                mMenuItemQualityBitRate.Items.Add(new Separator());
+            }
+
+            foreach (var b in bitrate)
+            {
+                MenuItem t = new MenuItem();
+                t.Header = b;
+                t.IsCheckable = true;
+                t.IsChecked = false;
+                t.Click += (s, x) => {
+                    for (int i = 0; i < mListMenuItemBitRate.Count; i++)
+                    {
+                        if (mListMenuItemBitRate[i].Header.ToString() == b)
+                        {
+                            mQualityBitRate = b;
+                            mListMenuItemBitRate[i].IsChecked = true;
+                        }
+                        else
+                            mListMenuItemBitRate[i].IsChecked = false;
+                    }
+                    StopAdbScrRec(true);
+                };
+                mListMenuItemBitRate.Add(t);
+                mMenuItemQualityBitRate.Items.Add(t);
+            }
+
+            {
+                MenuItem t = new MenuItem();
+                t.Header = "Default";
+                t.IsCheckable = true;
+                t.IsChecked = true;
+                t.Click += (s, x) => {
+                    if (mListMenuItemResolution.Count >= 2)
+                    {
+                        mQualityResolution = "";
+                        mListMenuItemResolution[0].IsChecked = true; //Default
+                        mListMenuItemResolution[1].IsChecked = false;//Custom
+                        mListMenuItemResolution[1].Header = "Custom...";
+                        for (int i = 2; i < mListMenuItemResolution.Count; i++)
+                            mListMenuItemResolution[i].IsChecked = false;
+                        StopAdbScrRec(true);
+                    }
+                };
+                mListMenuItemResolution.Add(t);
+                mMenuItemQualityResolution.Items.Add(t);
+
+                t = new MenuItem();
+                t.Header = "Custom...";
+                t.IsCheckable = true;
+                t.IsChecked = false;
+                t.Click += (s, x) => {
+                    if (mListMenuItemResolution.Count > 2)
+                    {
+                        mQualityResolution = "";
+                        mListMenuItemResolution[0].IsChecked = true;
+                        SelectDialog selectDialog = new SelectDialog(1080, 1920, "Please input resolution", null, null);
+                        selectDialog.ShowDialog();
+                        if ((bool)selectDialog.DialogResult)
+                        {
+                            string res = selectDialog.getResolution();
+                            if (res.Length > 0)
+                            {
+                                mQualityResolution = res;
+                                mListMenuItemResolution[0].IsChecked = false;//Default
+                                mListMenuItemResolution[1].IsChecked = true; //Custom
+                                mListMenuItemResolution[1].Header = string.Format("Custom({0})...", res);
+                                for (int i = 2; i < mListMenuItemResolution.Count; i++)
+                                    mListMenuItemResolution[i].IsChecked = false;
+                            }
+                        }
+                        StopAdbScrRec(true);
+                    }
+                };
+                mListMenuItemResolution.Add(t);
+                mMenuItemQualityResolution.Items.Add(t);
+                mMenuItemQualityResolution.Items.Add(new Separator());
+            }
+
+            foreach (var r in resolution_portrait)
+            {
+                MenuItem t = new MenuItem();
+                t.Header = r;
+                t.IsCheckable = true;
+                t.IsChecked = false;
+                t.Click += (s, x) => {
+                    if (mListMenuItemResolution.Count >= 2)
+                    {
+                        mQualityResolution = "";
+                        mListMenuItemResolution[0].IsChecked = false; //Default
+                        mListMenuItemResolution[1].IsChecked = false;//Custom
+                        mListMenuItemResolution[1].Header = "Custom...";
+                        for (int i = 2; i < mListMenuItemResolution.Count; i++)
+                        {
+                            if (mListMenuItemResolution[i].Header.ToString() == r)
+                            {
+                                mQualityResolution = r;
+                                mListMenuItemResolution[i].IsChecked = true;
+                            }
+                            else
+                                mListMenuItemResolution[i].IsChecked = false;
+                        }
+                        StopAdbScrRec(true);
+                    }
+                };
+                mListMenuItemResolution.Add(t);
+                mMenuItemQualityResolution.Items.Add(t);
+            }
+            mMenuItemQualityResolution.Items.Add(new Separator());
+            foreach (var r in resolution_landscape)
+            {
+                MenuItem t = new MenuItem();
+                t.Header = r;
+                t.IsCheckable = true;
+                t.IsChecked = false;
+                t.Click += (s, x) => {
+                    if (mListMenuItemResolution.Count >= 2)
+                    {
+                        mQualityResolution = "";
+                        mListMenuItemResolution[0].IsChecked = false; //Default
+                        mListMenuItemResolution[1].IsChecked = false;//Custom
+                        mListMenuItemResolution[1].Header = "Custom...";
+                        for (int i = 2; i < mListMenuItemResolution.Count; i++)
+                        {
+                            if (mListMenuItemResolution[i].Header.ToString() == r)
+                            {
+                                mQualityResolution = r;
+                                mListMenuItemResolution[i].IsChecked = true;
+                            }
+                            else
+                                mListMenuItemResolution[i].IsChecked = false;
+                        }
+                        StopAdbScrRec(true);
+                    }
+                };
+                mListMenuItemResolution.Add(t);
+                mMenuItemQualityResolution.Items.Add(t);
+            }
         }
 
         void RefreshAdbScrRec()
@@ -1116,7 +1308,8 @@ namespace ADBWrapper
 
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
-            AdbCMDShell("am start -a android.settings.SETTINGS");
+            mBtnSettings.ContextMenu.IsOpen = true;
+            //AdbCMDShell("am start -a android.settings.SETTINGS");
         }
 
         private void BtnSettingsMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1200,29 +1393,30 @@ namespace ADBWrapper
         }
         private void BtnAutoRefresh_Click(object sender, RoutedEventArgs e)
         {
-            if (mRefreshMode == RefreshMode.MUTUAL)
-            {
-                mRefreshMode = RefreshMode.DISABLE;
-            }
-            else if (mRefreshMode == RefreshMode.DISABLE)
-            {
-                mRefreshMode = RefreshMode.AUTO;
-            }
-            else if (mRefreshMode == RefreshMode.AUTO)
-            {
-                mRefreshMode = RefreshMode.SCR_REC;
-            }
-            else if (mRefreshMode == RefreshMode.SCR_REC)
-            {
-                mRefreshMode = RefreshMode.SCR_REC_Gray;
-            }
-            else if (mRefreshMode == RefreshMode.SCR_REC_Gray)
-            {
-                mRefreshMode = RefreshMode.MUTUAL;
-            }
-            ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
-            ADBWrapper.Properties.Settings.Default.Save();
-            UpdateBtnAutoRefresh();
+            mBtnAutoRefresh.ContextMenu.IsOpen = true;
+            //if (mRefreshMode == RefreshMode.MUTUAL)
+            //{
+            //    mRefreshMode = RefreshMode.DISABLE;
+            //}
+            //else if (mRefreshMode == RefreshMode.DISABLE)
+            //{
+            //    mRefreshMode = RefreshMode.AUTO;
+            //}
+            //else if (mRefreshMode == RefreshMode.AUTO)
+            //{
+            //    mRefreshMode = RefreshMode.SCR_REC;
+            //}
+            //else if (mRefreshMode == RefreshMode.SCR_REC)
+            //{
+            //    mRefreshMode = RefreshMode.SCR_REC_Gray;
+            //}
+            //else if (mRefreshMode == RefreshMode.SCR_REC_Gray)
+            //{
+            //    mRefreshMode = RefreshMode.MUTUAL;
+            //}
+            //ADBWrapper.Properties.Settings.Default.RefreshMode = (int)mRefreshMode;
+            //ADBWrapper.Properties.Settings.Default.Save();
+            //UpdateBtnAutoRefresh();
         }
 
         private void BtnAutoRefreshMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1517,15 +1711,29 @@ namespace ADBWrapper
                     mMenuItemScrRecStop.Visibility = Visibility.Visible;
                     mImgScrRecStop.Visibility = Visibility.Visible;
                     mImgScrShot.Visibility = Visibility.Collapsed;
+
+                    mBtnAutoRefresh.IsEnabled = false;
+                    mGridAutoRefreshImages.Opacity = 0.3;
                 }
             }
             else if (sender == mMenuItemScrRecStop)
             {
-                mDecoder.stopRecMP4();
+                if (mDecoder.isRecMP4())
+                {
+                    mAdbScrStreamMutex.WaitOne();
+                    StopAdbScrRec(false);
+                    Thread.Sleep(500); //Workaround for waiting adb.exe is terminated totally.
+                    mDecoder.stopRecMP4();
+                    mAdbScrStreamMutex.ReleaseMutex();
+                }
+
                 mMenuItemScrRecStop.Visibility = Visibility.Collapsed;
                 mMenuItemScrRecStart.Visibility = Visibility.Visible;
                 mImgScrShot.Visibility = Visibility.Visible;
                 mImgScrRecStop.Visibility = Visibility.Collapsed;
+
+                mBtnAutoRefresh.IsEnabled = true;
+                mGridAutoRefreshImages.Opacity = 1;
             }
         }
 
@@ -1807,10 +2015,19 @@ namespace ADBWrapper
                         item.Items.Add(itemSub);
                         item.Items.Add(new Separator());
 
-                        itemSub = new MenuItem() { Header = "Enable tcpip" };
+                        itemSub = new MenuItem() { Header = "Switch to tcpip mode" };
                         itemSub.Click += (s, x) =>
                         {
                             string param = "-s " + d.name + " tcpip " + TCP_PORT.ToString();
+                            Console.WriteLine(param);
+                            RunCMDwithMsgBox(mAdbPath, param);
+                        };
+                        item.Items.Add(itemSub);
+
+                        itemSub = new MenuItem() { Header = "Switch to USB mode" };
+                        itemSub.Click += (s, x) =>
+                        {
+                            string param = "-s " + d.name + " usb";
                             Console.WriteLine(param);
                             RunCMDwithMsgBox(mAdbPath, param);
                         };
@@ -1828,9 +2045,10 @@ namespace ADBWrapper
                             };
                             item.Items.Add(itemSub);
                         }
-                        else
+                        else if (d.ip.Length>0)
                         {
-                            itemSub = new MenuItem() { Header = "Connect " + d.ip };
+                            itemSub = new MenuItem() { Header = "Connect wirelessly"};
+                            itemSub.ToolTip = d.ip;
                             itemSub.Click += (s, x) =>
                             {
                                 string param = "connect " + d.ip;
@@ -1842,14 +2060,7 @@ namespace ADBWrapper
                         }
 
 
-                        itemSub = new MenuItem() { Header = "Connect USB" };
-                        itemSub.Click += (s, x) =>
-                        {
-                            string param = "-s " + d.name + " usb";
-                            Console.WriteLine(param);
-                            RunCMDwithMsgBox(mAdbPath, param);
-                        };
-                        item.Items.Add(itemSub);
+
 
                         //itemSub = new MenuItem() { Header = "Remove "+d.name };
                         //itemSub.Click += (s, x) => {
@@ -1866,8 +2077,8 @@ namespace ADBWrapper
                         //};
                         //item.Items.Add(itemSub);
 
-                        item.Items.Add(new Separator());
-                        item.Items.Add(new MenuItem() { Header = d.ip });
+                        //item.Items.Add(new Separator());
+                        //item.Items.Add(new MenuItem() { Header = d.ip });
 
                     }
 
@@ -1884,7 +2095,7 @@ namespace ADBWrapper
                 itemFunc = new MenuItem() { Header = "Connect to IP..." };
                 itemFunc.Click += (s, x) => {
                     uint[] ip = new uint[5] { 192, 168, 99, 1, TCP_PORT };
-                    if (mDevice != null)
+                    if (mDevice != null && mDevice.ip.Length>0)
                     {
                         Regex regexIP = new Regex("(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+):(\\d+)");
                         var match = regexIP.Match(mDevice.ip);
@@ -1928,6 +2139,29 @@ namespace ADBWrapper
         {
             //adb shell ip -f inet addr show
             mBtnMenu.ContextMenu.IsOpen = true;
+        }
+
+        private void AdbScreenShot_MouseEnter(object sender, MouseEventArgs e)
+        {
+            DoubleAnimation da = new DoubleAnimation();
+            da.To = 1;
+            da.Duration = new Duration(TimeSpan.FromSeconds(0.25));
+            mLabelUpdatedInterval.BeginAnimation(OpacityProperty, da);
+            mLabelUpdatedIntervalBlur.BeginAnimation(OpacityProperty, da);
+        }
+
+        private void AdbScreenShot_MouseLeave(object sender, MouseEventArgs e)
+        {
+            DoubleAnimation da = new DoubleAnimation();
+            da.To = 0;
+            da.Duration = new Duration(TimeSpan.FromSeconds(0.25));
+            mLabelUpdatedInterval.BeginAnimation(OpacityProperty, da);
+            mLabelUpdatedIntervalBlur.BeginAnimation(OpacityProperty, da);
+        }
+
+        private void CheckBoxAlwayOnTop_Click(object sender, RoutedEventArgs e)
+        {
+            this.Topmost = mCheckBoxAlwayOnTop.IsChecked == true;
         }
     }
 }

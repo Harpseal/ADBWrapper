@@ -230,6 +230,7 @@ public:
 							int width = m_frame->width;
 							int height = m_frame->height;
 							int channels = *pOutchannels == 1 ? 1 : 3;
+							m_statusStreamFPSCount++;
 
 							if (*pOutwidth == width && *pOutheight == height && *pOutchannels == channels && pOutImgdata != nullptr)
 							{
@@ -377,6 +378,7 @@ public:
 						//printf("Packet %X %d %p %d\n", m_pkt->flags, m_isMp4GotKeyFrame, m_pkt->data, m_pkt->size);
 						if (m_pMp4File && m_isMp4GotKeyFrame)
 						{
+							m_sizeMp4KB += (double)m_pkt->size / 1024.0;
 							fwrite(m_pkt->data, 1, m_pkt->size, m_pMp4File);
 						}
 
@@ -384,6 +386,19 @@ public:
 						std::chrono::duration<double> elapsed = finish - start;
 						m_timeCvtFmt += elapsed.count();
 						m_timeCvtFmtCount++;
+
+						auto timeNow = std::chrono::high_resolution_clock::now();
+						std::chrono::duration<double> elapsedStatus = timeNow - m_statusStreamUpdatedTime;
+						m_statusStreamUpdatedTime = timeNow;
+
+						double speedMBPS = ((double)m_pkt->size / 1024.0) / elapsedStatus.count();
+						if (m_statusStreamKBPSIIR == 0) m_statusStreamKBPSIIR = speedMBPS;
+						else m_statusStreamKBPSIIR = m_statusStreamKBPSIIR * 0.95 + speedMBPS * 0.05;
+
+						double speedFPS = ((double)m_statusStreamFPSCount) / elapsedStatus.count();
+						m_statusStreamFPSCount = 0;
+						if (m_statusStreamFPSIIR == 0) m_statusStreamFPSIIR = speedFPS;
+						else m_statusStreamFPSIIR = m_statusStreamFPSIIR * 0.95 + speedFPS * 0.05;
 					}
 				}
 			}
@@ -418,10 +433,26 @@ public:
 
 	double getPerformance(int type)
 	{
-		if (type)
-			return m_timeCvtFmtCount != 0 ? m_timeCvtFmt / m_timeCvtFmtCount : -1;
-		else
+		switch (type)
+		{
+		case 0:
 			return m_timeDecodeCount != 0 ? m_timeDecode / m_timeDecodeCount : -1;
+		case 1:
+			return m_timeCvtFmtCount != 0 ? m_timeCvtFmt / m_timeCvtFmtCount : -1;
+		case 2:
+			if (m_pMp4File == nullptr) return 0;
+			{
+				std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - m_timeMp4Start;
+				return elapsed.count();
+			}
+		case 3:
+			return m_sizeMp4KB;
+		case 4:
+			return m_statusStreamKBPSIIR;
+		case 5:
+			return m_statusStreamFPSIIR;
+		}
+		return -1;
 	}
 
 	bool startRecMP4(const char* str)
@@ -430,14 +461,39 @@ public:
 		m_pMp4File = fopen(str, "wb");
 		m_isMp4GotKeyFrame = false;
 		m_timeMp4Start = std::chrono::high_resolution_clock::now();
-		//printf("mp4: %s %p\n", str, m_pMp4File);
+		m_sizeMp4KB = 0;
+		m_statusStreamKBPSIIR = 0;
+		m_statusStreamFPSCount = 0;
+		m_statusStreamFPSIIR = 0;
+		m_statusStreamUpdatedTime = std::chrono::high_resolution_clock::now();
+		m_strMp4FileName = str;
 		return m_pMp4File != nullptr;
 	}
 	void stopRecMP4()
 	{	
 		int ret = 0;
 		if (m_pMp4File != nullptr)
+		{
 			ret = fclose(m_pMp4File);
+#if 1
+			std::size_t found = m_strMp4FileName.find_last_of(".");
+			if (found != std::string::npos)
+			{
+			  	std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - m_timeMp4Start;
+				char buffer[1024];
+				char value[128];
+				strncpy(buffer, m_strMp4FileName.c_str(), found);
+				buffer[found] = '\0';
+				
+				sprintf_s(value, sizeof(value), "_%.3fsec", elapsed.count());
+				strcat(buffer, value);
+				strcat(buffer, m_strMp4FileName.c_str()+found);
+				
+				int ret = rename(m_strMp4FileName.c_str(), buffer);
+				//printf("rename %d : %s => %s\n", ret, m_strMp4FileName.c_str(), buffer);
+			}
+#endif
+		}
 		//printf("stopRecMP4 %p %d\n", m_pMp4File,ret);
 		m_pMp4File = nullptr;
 		m_isMp4GotKeyFrame = false;
@@ -447,18 +503,6 @@ public:
 		return m_pMp4File != nullptr;
 	}
 
-	double getRecMP4Seconds()
-	{
-		if (m_pMp4File == nullptr) return 0;
-
-		std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - m_timeMp4Start;
-		return elapsed.count();
-	}
-
-	void testStr(System::String^ str)
-	{
-
-	}
 private:
 	const AVCodec* m_codec = nullptr;
 	AVCodecParserContext* m_parser = nullptr;
@@ -480,9 +524,17 @@ private:
 	int m_timeDecodeCount = 0;
 
 	//For screen recording
+	std::string m_strMp4FileName = "";
 	FILE* m_pMp4File = nullptr;
 	bool m_isMp4GotKeyFrame = false;
+	double m_sizeMp4KB = 0;
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_timeMp4Start = std::chrono::high_resolution_clock::now();
+
+	double m_statusStreamKBPSIIR = 0;
+	int m_statusStreamFPSCount = 0;
+	double m_statusStreamFPSIIR = 0;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_statusStreamUpdatedTime = std::chrono::high_resolution_clock::now();
+	
 
 	
 }; //FFMpegDecoder
@@ -558,12 +610,6 @@ bool FFMpegWrapperCLI::isRecMP4()
 {
 	return m_pDecoder->isRecMP4();
 }
-
-double FFMpegWrapperCLI::getRecMP4Seconds()
-{
-	return m_pDecoder->getRecMP4Seconds();
-}
-
 
 void* createDecoder(int codec_idx, int buffer_size)
 {

@@ -25,12 +25,17 @@ public:
     bool init(int codec_idx, int buffer_size, bool is_bgr);
     int decoderBuffer(System::IntPtr pRawdata, int nRawdata, System::IntPtr pOutwidth, System::IntPtr pOutheight, System::IntPtr pOutchannels, System::IntPtr pImgdata);
 
+    //0 : decode time (Sec)
+    //1 : cvtFmt time (Sec)
+    //2 : mp4 record time (Sec)
+    //3 : mp4 record size (KB)
+    //4 : stream bit-rate IIR (KB/Sec)
+    //5 : FPS (Frame/Sec)
     double getPerformance(int type);
 
     bool startRecMP4(System::String^ filePath);
     void stopRecMP4();
     bool isRecMP4();
-    double getRecMP4Seconds();
 
 private:
 

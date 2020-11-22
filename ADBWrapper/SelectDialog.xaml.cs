@@ -32,18 +32,20 @@ namespace ADBWrapper
 
             mSelectionList = selectionList;
             mRadioBtnList = new List<RadioButton>();
-            foreach (var s in selectionList)
+            for (int i=0;i<selectionList.Count;i++)
             {
                 RadioButton btn;
                 btn = new RadioButton();
-                btn.Content = s;
+                btn.Content = selectionList[i];
                 btn.GroupName = "devices";
+                if (i == 0) btn.IsChecked = true;
                 mPanelDeviceSelection.Children.Add(btn);
                 mRadioBtnList.Add(btn);
             }
 
             mPanelDeviceSelection.Visibility = Visibility.Visible;
             mPanelIP.Visibility = Visibility.Collapsed;
+            mPanelResolution.Visibility = Visibility.Collapsed;
 
             mTextMessage.Text = message;
             if (textBtnOK != null) mBtnOk.Content = textBtnOK;
@@ -58,6 +60,25 @@ namespace ADBWrapper
             mTextIP2.Text = ip2.ToString();
             mTextIP3.Text = ip3.ToString();
             mTextPort.Text = port.ToString();
+
+            mPanelDeviceSelection.Visibility = Visibility.Collapsed;
+            mPanelIP.Visibility = Visibility.Visible;
+            mPanelResolution.Visibility = Visibility.Collapsed;
+
+            mTextMessage.Text = message;
+            if (textBtnOK != null) mBtnOk.Content = textBtnOK;
+            if (textBtnCancel != null) mBtnCancel.Content = textBtnCancel;
+        }
+
+        public SelectDialog(uint width, uint height, string message, string textBtnOK = null, string textBtnCancel = null)
+        {
+            InitializeComponent();
+            mTextResWidth.Text = width.ToString();
+            mTextResHeight.Text = height.ToString();
+
+            mPanelDeviceSelection.Visibility = Visibility.Collapsed;
+            mPanelIP.Visibility = Visibility.Collapsed;
+            mPanelResolution.Visibility = Visibility.Visible;
 
             mTextMessage.Text = message;
             if (textBtnOK != null) mBtnOk.Content = textBtnOK;
@@ -99,6 +120,17 @@ namespace ADBWrapper
                 int.TryParse(mTextPort.Text, out n) && n >= 0 && n < 65536)
             {
                 return string.Format("{0}.{1}.{2}.{3}:{4}", mTextIP0.Text, mTextIP1.Text, mTextIP2.Text, mTextIP3.Text, mTextPort.Text);
+            }
+            return "";
+        }
+
+        public string getResolution()
+        {
+            int n;
+            if (int.TryParse(mTextResWidth.Text, out n) && n > 0 &&
+                int.TryParse(mTextResHeight.Text, out n) && n > 0)
+            {
+                return string.Format("{0}x{1}", mTextResWidth.Text, mTextResHeight.Text);
             }
             return "";
         }
