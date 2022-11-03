@@ -102,6 +102,10 @@ namespace ADBWrapper
         private string mQualityBitRate = "";
         private string mQualityResolution = "";
 
+        private bool mIsEnableBorderlessMode = false;
+        DoubleAnimation mAniFadeIn;
+        DoubleAnimation mAniFadeOut;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -113,6 +117,8 @@ namespace ADBWrapper
                     mAdbPath = args[i];
                 else if (args[i] == "--console")
                     AllocConsole();
+                else if (args[i] == "--borderless")
+                    mIsEnableBorderlessMode = true;
                 else if (args[i] == "--wheel" && i + 1 < args.Length)
                 {
                     string[] arg_wheel = args[i + 1].Split(',');
@@ -131,7 +137,22 @@ namespace ADBWrapper
                 }
             }
 
-            Console.WriteLine("--console --wheel skipframes:{0},deltascale:{1},maxdragdis:{2},dragms:{3}",
+            if (mIsEnableBorderlessMode)
+            {
+                this.WindowStyle = WindowStyle.None;
+                this.AllowsTransparency = true;
+                this.ResizeMode = ResizeMode.CanResizeWithGrip;
+                mStackPanelTitleBar.Visibility = Visibility.Visible;
+            }
+            mAniFadeIn = new DoubleAnimation();
+            mAniFadeIn.To = 1;
+            mAniFadeIn.Duration = new Duration(TimeSpan.FromSeconds(0.15));
+
+            mAniFadeOut = new DoubleAnimation();
+            mAniFadeOut.To = 0;
+            mAniFadeOut.Duration = new Duration(TimeSpan.FromSeconds(0.15));
+
+            Console.WriteLine("--console --borderless --wheel skipframes:{0},deltascale:{1},maxdragdis:{2},dragms:{3}",
                 m_iMouseWheelSkipFrames,
                 m_iMouseWheelDeltaScale,
                 m_iMouseWheelMaxDragDis,
@@ -2162,6 +2183,83 @@ namespace ADBWrapper
         private void CheckBoxAlwayOnTop_Click(object sender, RoutedEventArgs e)
         {
             this.Topmost = mCheckBoxAlwayOnTop.IsChecked == true;
+        }
+
+        private void TitleBarButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender == mBtnTitleBarShow)
+            {
+                if (mStackPanelRight.Visibility != Visibility.Visible)
+                {
+                    mStackPanelRight.Visibility = Visibility.Visible;
+                    mBtnTitleBarShow.Visibility = Visibility.Collapsed;
+                    mBtnTitleBarHide.Visibility = Visibility.Visible;
+                }
+            }
+            else if (sender == mBtnTitleBarHide)
+            {
+                if (mStackPanelRight.Visibility == Visibility.Visible)
+                {
+                    mStackPanelRight.Visibility = Visibility.Collapsed;
+                    mBtnTitleBarShow.Visibility = Visibility.Visible;
+                    mBtnTitleBarHide.Visibility = Visibility.Collapsed;
+                }
+            }
+            else if (sender == mBtnTitleBarExitFull)
+            {
+                if (this.WindowState == WindowState.Maximized)
+                    this.WindowState = WindowState.Normal;
+            }
+            else if (sender == mBtnTitleBarClose)
+            {
+                this.Close();
+            }
+        }
+
+        private void TitleBarButtonMove_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                this.DragMove();
+            }
+        }
+
+        private void Window_StateChanged(object sender, EventArgs e)
+        {
+            if (this.WindowState == WindowState.Maximized)
+            {
+                mBtnTitleBarExitFull.Visibility = Visibility.Visible;
+                mBtnTitleBarMove.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                mBtnTitleBarExitFull.Visibility = Visibility.Collapsed;
+                mBtnTitleBarMove.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void StackPanelTitleBar_MouseEnter(object sender, MouseEventArgs e)
+        {
+            if (mStackPanelRight.Visibility != Visibility.Visible)
+            {
+                mStackPanelTitleBar.BeginAnimation(OpacityProperty, mAniFadeIn);
+            }
+            else if (mStackPanelTitleBar.Opacity != 1)
+            {
+                mStackPanelTitleBar.Opacity = 1;
+            }
+        }
+
+        private void StackPanelTitleBar_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (mStackPanelRight.Visibility != Visibility.Visible)
+            {
+                mStackPanelTitleBar.BeginAnimation(OpacityProperty, mAniFadeOut);
+            }
+            else if (mStackPanelTitleBar.Opacity != 1)
+            {
+                mStackPanelTitleBar.Opacity = 1;
+            }
         }
     }
 }

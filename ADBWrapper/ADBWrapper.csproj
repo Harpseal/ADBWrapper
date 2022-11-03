@@ -150,5 +150,12 @@
   <ItemGroup>
     <Resource Include="resource\icon\round_apps_white_36dp.png" />
   </ItemGroup>
+  <ItemGroup>
+    <Resource Include="resource\icon\icon_close.png" />
+    <Resource Include="resource\icon\icon_fullscreen_exit.png" />
+    <Resource Include="resource\icon\icon_hide.png" />
+    <Resource Include="resource\icon\icon_move.png" />
+    <Resource Include="resource\icon\icon_show.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

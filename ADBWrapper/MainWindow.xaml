@@ -5,12 +5,30 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ADBWrapper"
         mc:Ignorable="d"
-        Title="ADB Wrapper" Height="640" Width="400" Background="#FF404040" Loaded="Window_Loaded" Closing="Window_Closing">
+        Title="ADB Wrapper" Height="640" Width="400" Background="#FF404040" Loaded="Window_Loaded" Closing="Window_Closing" StateChanged="Window_StateChanged">
+    <Grid>
+    <StackPanel x:Name="mStackPanelTitleBar" Visibility="Collapsed" Orientation="Horizontal" Panel.ZIndex="1000" Margin="0,8,8,0" HorizontalAlignment="Right" VerticalAlignment="Top" MouseEnter="StackPanelTitleBar_MouseEnter" MouseLeave="StackPanelTitleBar_MouseLeave">
+        <Button x:Name="mBtnTitleBarShow" ToolTip="Show control buttons" Visibility="Collapsed" Width="28" Height="28" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Click="TitleBarButton_Click">
+            <Image Source="resource/icon/icon_show.png"></Image>
+        </Button>
+        <Button x:Name="mBtnTitleBarHide" ToolTip="Hide control buttons" Width="28" Height="28" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Click="TitleBarButton_Click">
+            <Image Source="resource/icon/icon_hide.png"></Image>
+        </Button>
+        <Button x:Name="mBtnTitleBarExitFull" ToolTip="Fullscreen exit" Visibility="Collapsed" Width="28" Height="28" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Click="TitleBarButton_Click">
+            <Image Source="resource/icon/icon_fullscreen_exit.png"></Image>
+        </Button>
+        <Border x:Name="mBtnTitleBarMove" ToolTip="Move window" Width="28" Height="28" BorderThickness="3" MouseMove="TitleBarButtonMove_MouseMove">
+            <Image Source="resource/icon/icon_move.png"></Image>
+        </Border>
+        <Button x:Name="mBtnTitleBarClose" ToolTip="Close window" Width="28" Height="28" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Click="TitleBarButton_Click">
+            <Image Source="resource/icon/icon_close.png"></Image>
+        </Button>
+    </StackPanel>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="0"/>
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="32"/>
+            <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="0" HorizontalAlignment="Right">
             <Button x:Name="mBtnDebug" Visibility="Visible" Width="32" Height="32" Background="{x:Null}" Click="BtnDebug_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False">
@@ -21,7 +39,7 @@
             </Button>
         </StackPanel>
         <Image x:Name="mAdbScreenShot" Grid.Column="1" MouseDown="AdbScreenShot_MouseDown" MouseUp="AdbScreenShot_MouseUp" MouseMove="AdbScreenShot_MouseMove" MouseWheel="AdbScreenShot_MouseWheel" MouseEnter="AdbScreenShot_MouseEnter" MouseLeave="AdbScreenShot_MouseLeave"/>
-        <StackPanel Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="2" HorizontalAlignment="Right">
+        <StackPanel x:Name="mStackPanelRight" Width="32" Orientation="Vertical" VerticalAlignment="Center" Grid.Column="2" HorizontalAlignment="Right">
             <Button x:Name="mBtnMenu" Visibility="Collapsed" Width="32" Height="32" Background="{x:Null}" Click="BtnMenu_Click" BorderBrush="{x:Null}" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Focusable="False" ToolTip="Menu">
                 <Image Source="resource/icon/round_menu_white_36dp.png"/>
                 <Button.ContextMenu>
@@ -157,5 +175,6 @@
         </RichTextBox>
         <RichTextBox x:Name="mRichTextBoxMessage" FontSize="10" Padding="0" Foreground="White" Grid.Column="1" IsHitTestVisible="false" Background="Transparent" Visibility="Visible" Opacity="0" BorderThickness="0">
         </RichTextBox>
+    </Grid>
     </Grid>
 </Window>
